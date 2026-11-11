@@ -62,6 +62,7 @@ public static class AuthModule
         services.AddSingleton<IPinHasher, PinHasher>();
         services.AddSingleton<LoginThrottle>();
         services.AddScoped<LoginService>();
+        services.AddScoped<UserService>();
 
         return services;
     }

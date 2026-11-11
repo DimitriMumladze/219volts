@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Infrastructure;
 using TwoNineteenVolts.Venue.Domain.Audit;
 using TwoNineteenVolts.Venue.Domain.Auth;
 
@@ -11,6 +12,9 @@ public interface IVenueDbContext
     DbSet<User> Users { get; }
 
     DbSet<AuditEntry> AuditEntries { get; }
+
+    // For the rare change that needs more than one SaveChangesAsync to stay all-or-nothing.
+    DatabaseFacade Database { get; }
 
     Task<int> SaveChangesAsync(CancellationToken cancellationToken = default);
 }
