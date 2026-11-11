@@ -1,6 +1,6 @@
-using TwoNineteenVolts.Venue.Infrastructure.Auth;
+using TwoNineteenVolts.Venue.Commands.Setup;
 
-namespace TwoNineteenVolts.Venue.Tests.Auth;
+namespace TwoNineteenVolts.Venue.Tests.Setup;
 
 // Answers prompts from a script and keeps everything the command printed.
 public class FakeConsole(params string[] inputs) : IConsole

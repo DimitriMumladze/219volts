@@ -1,6 +1,6 @@
 using System.Security.Cryptography;
 
-namespace TwoNineteenVolts.Venue.Infrastructure.Auth;
+namespace TwoNineteenVolts.Venue.Application.Setup;
 
 public static class SecretGenerator
 {

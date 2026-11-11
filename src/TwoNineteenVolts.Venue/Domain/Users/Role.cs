@@ -1,4 +1,4 @@
-namespace TwoNineteenVolts.Venue.Domain.Auth;
+namespace TwoNineteenVolts.Venue.Domain.Users;
 
 public enum Role
 {

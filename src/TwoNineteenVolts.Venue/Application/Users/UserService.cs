@@ -1,11 +1,12 @@
 using Microsoft.EntityFrameworkCore;
 using TwoNineteenVolts.Venue.Application.Audit;
+using TwoNineteenVolts.Venue.Application.Auth;
 using TwoNineteenVolts.Venue.Application.Data;
 using TwoNineteenVolts.Venue.Common;
 using TwoNineteenVolts.Venue.Domain.Audit;
-using TwoNineteenVolts.Venue.Domain.Auth;
+using TwoNineteenVolts.Venue.Domain.Users;
 
-namespace TwoNineteenVolts.Venue.Application.Auth;
+namespace TwoNineteenVolts.Venue.Application.Users;
 
 public class UserService(
     IVenueDbContext db,
@@ -73,7 +74,11 @@ public class UserService(
 
         var oldName = user.DisplayName;
         user.Rename(name);
-        return await SaveAsync(user, AuditActions.UserRenamed, details: oldName);
+        var result = await SaveAsync(user, AuditActions.UserRenamed, details: oldName);
+
+        // The sessions carry the old name in their claims, so the user must log in again.
+        sessions.EndSessionsFor(id);
+        return result;
     }
 
     public async Task<Result<User>> ChangeRoleAsync(int id, Role role)

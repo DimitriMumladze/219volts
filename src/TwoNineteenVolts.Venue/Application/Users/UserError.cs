@@ -1,4 +1,4 @@
-namespace TwoNineteenVolts.Venue.Application.Auth;
+namespace TwoNineteenVolts.Venue.Application.Users;
 
 // Expected failures of user management. The text doubles as the ProblemDetails title.
 public static class UserError

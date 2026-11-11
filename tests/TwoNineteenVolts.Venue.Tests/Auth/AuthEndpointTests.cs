@@ -4,7 +4,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using TwoNineteenVolts.Venue.Domain.Audit;
-using TwoNineteenVolts.Venue.Domain.Auth;
+using TwoNineteenVolts.Venue.Domain.Users;
 using TwoNineteenVolts.Venue.Infrastructure.Data;
 
 namespace TwoNineteenVolts.Venue.Tests.Auth;
@@ -121,6 +121,20 @@ public class AuthEndpointTests
 
         factory.Time.Advance(TimeSpan.FromSeconds(1));
         Assert.Equal(HttpStatusCode.OK, (await client.LoginAsync(nino, "0123")).StatusCode);
+    }
+
+    [Fact]
+    public async Task Ids_without_a_loginable_user_are_not_tracked_by_the_slow_down()
+    {
+        using var factory = new VenueAppFactory();
+        var inactive = await TestUsers.AddAsync(factory, "Old Staff", Role.Staff, "1111", isActive: false);
+        using var client = factory.CreateClient();
+
+        for (var attempt = 1; attempt <= 10; attempt++)
+        {
+            await AssertWrongPinAsync(await client.LoginAsync(999, "1234"));
+            await AssertWrongPinAsync(await client.LoginAsync(inactive, "1111"));
+        }
     }
 
     [Fact]

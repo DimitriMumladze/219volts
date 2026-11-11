@@ -3,9 +3,10 @@ using Microsoft.AspNetCore.Authentication;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using TwoNineteenVolts.Venue.Application.Auth;
+using TwoNineteenVolts.Venue.Application.Users;
 using TwoNineteenVolts.Venue.Common;
 using TwoNineteenVolts.Venue.Domain.Audit;
-using TwoNineteenVolts.Venue.Domain.Auth;
+using TwoNineteenVolts.Venue.Domain.Users;
 using TwoNineteenVolts.Venue.Infrastructure.Auth;
 using TwoNineteenVolts.Venue.Infrastructure.Data;
 
@@ -157,6 +158,33 @@ public class UserServiceTests
 
         Assert.Null(await store.RetrieveAsync(gioSession));
         Assert.Null(await store.RetrieveAsync(datoSession));
+    }
+
+    [Fact]
+    public async Task Rename_ends_sessions_so_the_new_name_is_used()
+    {
+        using var factory = new VenueAppFactory();
+        var gio = await TestUsers.AddAsync(factory, "Gio", Role.Staff, "5678");
+        var store = factory.Services.GetRequiredService<InMemoryTicketStore>();
+        var session = await store.StoreAsync(TicketFor(gio, "Gio"));
+
+        await UseServiceAsync(factory, users => users.RenameAsync(gio, "Giorgi"));
+
+        Assert.Null(await store.RetrieveAsync(session));
+    }
+
+    [Fact]
+    public async Task Failed_rename_keeps_sessions()
+    {
+        using var factory = new VenueAppFactory();
+        await TestUsers.AddAsync(factory, "Nino", Role.Manager, "1234");
+        var gio = await TestUsers.AddAsync(factory, "Gio", Role.Staff, "5678");
+        var store = factory.Services.GetRequiredService<InMemoryTicketStore>();
+        var session = await store.StoreAsync(TicketFor(gio, "Gio"));
+
+        await UseServiceAsync(factory, users => users.RenameAsync(gio, "nino"));
+
+        Assert.NotNull(await store.RetrieveAsync(session));
     }
 
     [Fact]

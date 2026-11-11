@@ -1,12 +1,18 @@
 using System.Net;
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.Mvc;
-using TwoNineteenVolts.Venue.Domain.Auth;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using TwoNineteenVolts.Venue.Domain.Audit;
+using TwoNineteenVolts.Venue.Domain.Users;
+using TwoNineteenVolts.Venue.Infrastructure.Data;
 
 namespace TwoNineteenVolts.Venue.Tests.Users;
 
 public class UserEndpointTests
 {
+    private record Me(int Id, string DisplayName, string Role);
+
     private record UserDto(int Id, string DisplayName, string Role, bool IsActive, bool RemoteAccessAllowed, DateTime CreatedAt);
 
     [Fact]
@@ -84,6 +90,29 @@ public class UserEndpointTests
         await manager.PostAsync($"/api/users/{gio}/deactivate", null);
 
         Assert.Equal(HttpStatusCode.Unauthorized, (await staff.GetAsync("/api/auth/me")).StatusCode);
+    }
+
+    [Fact]
+    public async Task Renamed_user_logs_in_again_and_is_audited_under_the_new_name()
+    {
+        using var factory = new VenueAppFactory();
+        var nino = await TestUsers.AddAsync(factory, "Nino", Role.Manager, "1234");
+        var gio = await TestUsers.AddAsync(factory, "Gio", Role.Staff, "5678");
+        using var manager = await LoggedInAsync(factory, nino, "1234");
+        using var staff = await LoggedInAsync(factory, gio, "5678");
+
+        await manager.PutAsJsonAsync($"/api/users/{gio}/name", new { displayName = "Giorgi" });
+
+        Assert.Equal(HttpStatusCode.Unauthorized, (await staff.GetAsync("/api/auth/me")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await staff.LoginAsync(gio, "5678")).StatusCode);
+        var me = await staff.GetFromJsonAsync<Me>("/api/auth/me");
+        Assert.Equal("Giorgi", me!.DisplayName);
+
+        await staff.PostAsync("/api/auth/logout", null);
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<VenueDbContext>();
+        var logout = await db.AuditEntries.SingleAsync(e => e.Action == AuditActions.Logout);
+        Assert.Equal("Giorgi", logout.ActorName);
     }
 
     [Fact]

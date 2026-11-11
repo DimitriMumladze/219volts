@@ -1,6 +1,6 @@
 using Microsoft.AspNetCore.Identity;
 using TwoNineteenVolts.Venue.Application.Auth;
-using TwoNineteenVolts.Venue.Domain.Auth;
+using TwoNineteenVolts.Venue.Domain.Users;
 
 namespace TwoNineteenVolts.Venue.Infrastructure.Auth;
 

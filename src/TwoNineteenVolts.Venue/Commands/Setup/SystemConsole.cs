@@ -1,6 +1,6 @@
 using System.Text;
 
-namespace TwoNineteenVolts.Venue.Infrastructure.Auth;
+namespace TwoNineteenVolts.Venue.Commands.Setup;
 
 public class SystemConsole : IConsole
 {

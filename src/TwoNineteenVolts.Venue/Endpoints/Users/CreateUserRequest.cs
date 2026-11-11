@@ -1,4 +1,4 @@
-using TwoNineteenVolts.Venue.Domain.Auth;
+using TwoNineteenVolts.Venue.Domain.Users;
 
 namespace TwoNineteenVolts.Venue.Endpoints.Users;
 

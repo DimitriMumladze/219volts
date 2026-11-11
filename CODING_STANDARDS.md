@@ -67,7 +67,7 @@ public void TurnOn()
 Use file-scoped namespaces.
 
 ```csharp
-namespace TwoNineteenVolts.Api.Features.Lamps.Shelly;
+namespace TwoNineteenVolts.Venue.Infrastructure.Lamps;
 
 public class ShellyClient
 {
@@ -111,80 +111,104 @@ public class ShellyClient(HttpClient http)
 Each class, record, interface or enum lives in its own file, named after the type.
 
 ```
-Features/Lamps/Endpoints/LampEndpoints.cs  -> class LampEndpoints
-Features/Lamps/Contracts/LampStatus.cs     -> record LampStatus
+Endpoints/Lamps/LampEndpoints.cs       -> class LampEndpoints
+Endpoints/Lamps/LampStatus.cs          -> record LampStatus
+Infrastructure/Lamps/ShellyClient.cs   -> class ShellyClient
 ```
 
 ## 3. Project Layout
 
 ### 3.1 Repository
-Application code goes in `src/`, tests in `tests/`. The solution file sits at the root. Standalone design demos and mock-ups go in `prototypes/<name>/`; they are not part of the app and nothing in `src/` uses them.
+Application code goes in `src/`, tests in `tests/`. The solution file sits at the root. Each app is one project named `TwoNineteenVolts.<App>`, and its tests are `TwoNineteenVolts.<App>.Tests`. Standalone design demos and mock-ups go in `prototypes/<name>/`; they are not part of the app and nothing in `src/` uses them.
 
 ```
 219Wats/
   src/
-    TwoNineteenVolts.Api/          ASP.NET backend
-    TwoNineteenVolts.Web/          frontend (index.html, etc.)
+    TwoNineteenVolts.Venue/        venue app: runs on the venue PC as a Windows Service
   tests/
-    TwoNineteenVolts.Api.Tests/
+    TwoNineteenVolts.Venue.Tests/
   prototypes/
     admin-demo/                    clickable admin demo (index.html)
   TwoNineteenVolts.slnx
   CODING_STANDARDS.md
-  README.md
+  CLAUDE.md
 ```
 
 ### 3.2 Project and namespace names
-Projects are named `TwoNineteenVolts.<Part>`. Namespaces follow the folder path.
+Projects are named `TwoNineteenVolts.<App>`. Namespaces follow the folder path.
 
 ```csharp
-// src/TwoNineteenVolts.Api/Features/Lamps/Endpoints/LampEndpoints.cs
-namespace TwoNineteenVolts.Api.Features.Lamps.Endpoints;
+// src/TwoNineteenVolts.Venue/Endpoints/Users/UserEndpoints.cs
+namespace TwoNineteenVolts.Venue.Endpoints.Users;
 ```
 
-### 3.3 One backend project until a split is needed
-Start with a single `TwoNineteenVolts.Api` project. Split out another project (for example `TwoNineteenVolts.Domain` or `TwoNineteenVolts.Infrastructure`) only when there is a concrete reason, such as a second app that needs the same code. Write the reason in the pull request.
+### 3.3 One project per app until a split is needed
+Each app is a single project. Split out another project (for example `TwoNineteenVolts.Domain`) only when there is a concrete reason, such as a second app that needs the same code. Write the reason in the pull request. Until then the layers in 3.4 are folders, not projects.
 
-### 3.4 Folders by feature
-Inside a project, group code by feature, not by technical type. Everything one feature needs lives in its folder.
+### 3.4 Layers first, features inside
+Inside a project, the top folders are the Clean Architecture layers. Inside each layer, code is grouped by feature (`Auth/`, `Users/`, `Audit/`, `Setup/`, later `Devices/`). **A feature has the same name in every layer it appears in**, so everything about users is in a `Users/` folder, whichever layer you open.
 
 ```
-TwoNineteenVolts.Api/
-  Common/
-  Features/
-    Devices/
-    Bookings/
+TwoNineteenVolts.Venue/
+  Domain/
+    Users/           User.cs, Role.cs
+    Audit/           AuditEntry.cs, AuditSource.cs, AuditActions.cs
+  Application/
+    Auth/            LoginService.cs, LoginThrottle.cs, IPinHasher.cs, PinFormat.cs, ISessionRegistry.cs, ...
+    Users/           UserService.cs, UserError.cs
+    Audit/           IAuditLog.cs, ICurrentActor.cs, AuditActor.cs, AuditReader.cs, ...
+    Setup/           SetupService.cs, ResetSupportService.cs, SetupError.cs, SecretGenerator.cs
+    Data/            IVenueDbContext.cs
+  Infrastructure/
+    Auth/            AuthModule.cs, AuthOptions.cs, AuthClaims.cs, Policies.cs, PinHasher.cs, InMemoryTicketStore.cs, ...
+    Users/           UsersModule.cs, UserConfiguration.cs
+    Audit/           AuditModule.cs, AuditEntryConfiguration.cs, AuditLog.cs, AuditCleanupService.cs
+    Setup/           SetupModule.cs
+    Data/            DataModule.cs, VenueDbContext.cs, UtcDateTimeConverter.cs, Migrations/
+  Endpoints/
+    Auth/            AuthEndpoints.cs, LoginRequest.cs, CurrentUserResponse.cs, ...
+    Users/           UserEndpoints.cs, CreateUserRequest.cs, UserResponse.cs, ...
+    Audit/           AuditEndpoints.cs, AuditEntryResponse.cs, AuditPageResponse.cs
+  Commands/
+    Setup/           SetupCommand.cs, ResetSupportCommand.cs, IConsole.cs, SystemConsole.cs
+  Common/            Result.cs
   Program.cs
 ```
 
-Code shared by several features goes in `Common/`, and only once a second feature actually uses it.
+`Endpoints` and `Commands` are both entry points: the first serves HTTP, the second the command line (`TwoNineteenVolts.Venue.exe setup`). Both stay thin and leave the rules to `Application`.
 
-### 3.5 Folders inside a feature
-Inside a feature folder, files are grouped by role:
+**Dependency rule**, enforced by `tests/TwoNineteenVolts.Venue.Tests/ArchitectureTests.cs` (the layers are folders, so the compiler cannot enforce it):
 
-- `Endpoints/` holds the `<Feature>Endpoints` class (see 4.1).
-- `Contracts/` holds request and response records (see 4.3).
-- Every other part gets its own folder, named after what it is: an external service (`Shelly/`), a store (`Registry/`), a cross-cutting check (`ApiKey/`).
-- `<Feature>Module.cs` stays at the feature root (see 4.4).
+| Layer | May use |
+|---|---|
+| `Domain` | nothing else in the project, and no EF Core |
+| `Application` | `Domain`, `Common`; never ASP.NET Core |
+| `Infrastructure` | everything |
+| `Endpoints`, `Commands` | everything |
 
-```
-Features/Devices/
-  Endpoints/
-    DeviceEndpoints.cs
-  Contracts/
-    DeviceStatus.cs
-    RegisterDeviceRequest.cs
-    TimerRequest.cs
-  Shelly/
-    ShellyCloudClient.cs
-    ShellyCloudOptions.cs
-  Registry/
-    DeviceRegistry.cs
-  ApiKey/
-    ApiKeyFilter.cs
-    ApiKeyOptions.cs
-  DevicesModule.cs
-```
+- Application code reaches the database only through `Application/Data/IVenueDbContext`, which `VenueDbContext` implements. It never uses `VenueDbContext` itself.
+- Application code never touches `HttpContext`. What it needs from the request comes through an interface implemented in Infrastructure (example: `ICurrentActor`).
+
+Code shared by several features goes in `Common/`, and only once a second feature actually uses it (exception: `Result<T>`, see 6.2). The same holds inside a layer: `IConsole` lives in `Commands/Setup/` until a second feature has a command.
+
+### 3.5 What goes in each layer
+| Layer | Holds | Examples |
+|---|---|---|
+| `Domain/<Feature>/` | Entities, facts, enums and constants of the business (see 3.6) | `User`, `AuditEntry`, `Role`, `AuditActions` |
+| `Application/<Feature>/` | Services with the business rules, the interfaces they need, and their result and query types | `UserService`, `SetupService`, `LoginThrottle`, `IPinHasher`, `UserError`, `AuditQuery` |
+| `Infrastructure/<Feature>/` | Everything technical: EF configurations, implementations of Application interfaces, options, background services, and the `<Feature>Module` (see 4.4) | `UserConfiguration`, `PinHasher`, `AuthOptions`, `SessionExpiryService`, `AuthModule` |
+| `Endpoints/<Feature>/` | The `<Feature>Endpoints` class (see 4.1) and its request and response records (see 4.3) | `UserEndpoints`, `CreateUserRequest`, `UserResponse` |
+| `Commands/<Feature>/` | Command-line commands: prompts, printing and exit codes, and the console they talk to | `SetupCommand`, `ResetSupportCommand`, `IConsole` |
+
+Where does a new piece go? Ask what it needs:
+
+- Only business values and rules about one object → `Domain`.
+- A business rule that needs other data, the clock or another service → `Application`.
+- A library, the database schema, the file system or the OS → `Infrastructure`.
+- HTTP (routes, status codes, JSON shapes) → `Endpoints`.
+- The command line (questions, answers, exit codes) → `Commands`.
+
+**When a feature folder gets crowded,** first check whether it holds more than one feature. `Infrastructure/Auth/` once had 14 files covering sign-in, users, setup and the console; split into `Auth`, `Users` and `Setup`, it has 8. Only a folder that is still large after that gets subfolders by concern.
 
 ### 3.6 Domain classes
 Every domain class is one of two kinds. Decide by asking: **does it change after it is created?**
@@ -244,7 +268,7 @@ public class AuditEntry
 Write endpoints as Minimal APIs, not controllers. Each feature has one `<Feature>Endpoints` class that maps its routes under a `MapGroup`. Handlers are private static methods named after what they do.
 
 ```csharp
-// Features/Lamps/Endpoints/LampEndpoints.cs
+// Endpoints/Lamps/LampEndpoints.cs
 public static class LampEndpoints
 {
     public static void MapLampEndpoints(this IEndpointRouteBuilder app)
@@ -295,7 +319,7 @@ public record LampStatus(string Id, bool IsOn, double PowerW);
 Each feature registers its own services in a `<Feature>Module` class. `Program.cs` only calls these methods.
 
 ```csharp
-// Features/Lamps/LampsModule.cs
+// Infrastructure/Lamps/LampsModule.cs
 public static class LampsModule
 {
     public static IServiceCollection AddLamps(this IServiceCollection services)
@@ -312,10 +336,10 @@ builder.Services.AddLamps();
 ## 5. Configuration and Secrets
 
 ### 5.1 Options pattern
-Bind each settings section to a typed `<Name>Options` class in the feature folder. The class holds its section name as a constant. Feature code never reads `IConfiguration` by string key.
+Bind each settings section to a typed `<Name>Options` class in `Infrastructure/<Feature>/`. The class holds its section name as a constant. Feature code never reads `IConfiguration` by string key.
 
 ```csharp
-// Features/Lamps/Shelly/ShellyOptions.cs
+// Infrastructure/Lamps/ShellyOptions.cs
 public class ShellyOptions
 {
     public const string SectionName = "Shelly";
@@ -331,7 +355,7 @@ public class ShellyOptions
 Mark required settings with data annotations and register options with `ValidateOnStart()`, so the app refuses to start when a setting is missing or invalid.
 
 ```csharp
-// Features/Lamps/LampsModule.cs
+// Infrastructure/Lamps/LampsModule.cs
 services.AddOptions<ShellyOptions>()
     .BindConfiguration(ShellyOptions.SectionName)
     .ValidateDataAnnotations()
@@ -378,7 +402,7 @@ Secrets stay empty in `appsettings.json` (see 1.3) and are supplied like this:
 **Local development: User Secrets.** In Visual Studio, right-click the project and choose *Manage User Secrets*, or run:
 
 ```
-dotnet user-secrets set "Shelly:CloudAuthKey" "<key>" --project src/TwoNineteenVolts.Api
+dotnet user-secrets set "Shelly:CloudAuthKey" "<key>" --project src/TwoNineteenVolts.Venue
 ```
 
 **Deployed: environment variables.** Replace `:` with a double underscore:
@@ -512,7 +536,34 @@ The author may merge their own pull request. Ask for a review when a second opin
 
 ## 8. Testing
 
-Tests are not required during the demo phase. Testing gets its own section, chosen deliberately, before the first feature with real business logic (bookings, timers or payments).
+### 8.1 What must be tested
+- **Business rules get rule tests.** Every rule in a service or domain class has a test that fails when the rule is broken. Example: `Last_manager_cannot_be_deactivated_or_demoted`.
+- **Each endpoint group gets at least one success test and one permission test.** Example: `Manager_can_create_list_and_deactivate` and `Staff_gets_403_on_users`.
+
+### 8.2 Where tests live and how they are named
+Tests use xUnit, in `tests/TwoNineteenVolts.<App>.Tests/`, in folders named after the feature (`Auth/`, `Users/`, `Audit/`). A test name says the behavior in words separated by underscores; it reads as a sentence, not as a method name.
+
+```csharp
+[Fact]
+public async Task Deactivated_users_next_request_gets_401()
+```
+
+### 8.3 Endpoint and database tests
+Endpoint tests run the whole app in memory through `VenueAppFactory` (a `WebApplicationFactory<Program>`). Each factory instance gets its own temporary data folder and SQLite database, deleted afterwards, so tests never share data. Test data is inserted directly (`TestUsers.AddAsync`) so a test does not depend on another feature's endpoints.
+
+```csharp
+using var factory = new VenueAppFactory();
+var nino = await TestUsers.AddAsync(factory, "Nino", Role.Manager, "1234");
+using var client = factory.CreateClient();
+await client.LoginAsync(nino, "1234");
+```
+
+### 8.4 Time and background work
+- Code reads the time only through an injected `TimeProvider`. Tests control it with `FakeTimeProvider` (`factory.Time.Advance(...)`), so waits and expiries are tested instantly and give the same result every run.
+- A background service keeps its work in a public `RunOnceAsync()`. Tests call that directly; `VenueAppFactory` leaves the app's own background loops out so they cannot race the test.
+
+### 8.5 Architecture tests
+`ArchitectureTests.cs` checks the dependency rule of 3.4 on the compiled app (with NetArchTest). A change that makes `Application` use `Infrastructure`, or `Domain` use EF Core, fails the build's tests and names the offending type. When a new layer folder is added, add it to these tests.
 
 ## 9. Working with AI Assistants
 
@@ -523,9 +574,9 @@ For anything beyond a small change, first list the files to create or change and
 
 ```
 Plan:
-1. Add Features/Lamps/Endpoints/LampEndpoints.cs with GET /api/lamps/{id}/status
-2. Add Features/Lamps/Shelly/ShellyClient.cs (local call only)
-3. Register in Program.cs
+1. Add Endpoints/Lamps/LampEndpoints.cs with GET /api/lamps/{id}/status
+2. Add Infrastructure/Lamps/ShellyClient.cs (local call only)
+3. Add Infrastructure/Lamps/LampsModule.cs and call AddLamps() in Program.cs
 OK to proceed?
 ```
 

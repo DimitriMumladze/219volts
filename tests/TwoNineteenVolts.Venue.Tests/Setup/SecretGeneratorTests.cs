@@ -1,6 +1,6 @@
-using TwoNineteenVolts.Venue.Infrastructure.Auth;
+using TwoNineteenVolts.Venue.Application.Setup;
 
-namespace TwoNineteenVolts.Venue.Tests.Auth;
+namespace TwoNineteenVolts.Venue.Tests.Setup;
 
 public class SecretGeneratorTests
 {

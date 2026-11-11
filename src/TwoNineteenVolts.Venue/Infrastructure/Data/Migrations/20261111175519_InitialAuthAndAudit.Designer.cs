@@ -57,7 +57,7 @@ namespace TwoNineteenVolts.Venue.Infrastructure.Data.Migrations
                     b.ToTable("AuditEntries");
                 });
 
-            modelBuilder.Entity("TwoNineteenVolts.Venue.Domain.Auth.User", b =>
+            modelBuilder.Entity("TwoNineteenVolts.Venue.Domain.Users.User", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()

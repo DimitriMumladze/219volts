@@ -1,12 +1,12 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using TwoNineteenVolts.Venue.Application.Auth;
+using TwoNineteenVolts.Venue.Commands.Setup;
 using TwoNineteenVolts.Venue.Domain.Audit;
-using TwoNineteenVolts.Venue.Domain.Auth;
-using TwoNineteenVolts.Venue.Infrastructure.Auth;
+using TwoNineteenVolts.Venue.Domain.Users;
 using TwoNineteenVolts.Venue.Infrastructure.Data;
 
-namespace TwoNineteenVolts.Venue.Tests.Auth;
+namespace TwoNineteenVolts.Venue.Tests.Setup;
 
 public class ResetSupportCommandTests
 {
@@ -24,6 +24,19 @@ public class ResetSupportCommandTests
         Assert.Equal(1, exitCode);
         Assert.True(await VerifyAsync(factory, support, OldPassword));
         Assert.Equal(0, await AuditCountAsync(factory));
+    }
+
+    [Fact]
+    public async Task Reset_support_without_admin_does_not_touch_the_database()
+    {
+        // An empty service provider: any attempt to migrate or open the database throws.
+        using var nothing = new ServiceCollection().BuildServiceProvider();
+        var console = new FakeConsole();
+
+        var exitCode = await new ResetSupportCommand(nothing, console, () => false).RunAsync();
+
+        Assert.Equal(1, exitCode);
+        Assert.Contains(console.Output, line => line.Contains("administrator"));
     }
 
     [Fact]
@@ -58,15 +71,8 @@ public class ResetSupportCommandTests
         Assert.Equal(0, await AuditCountAsync(factory));
     }
 
-    private static async Task<int> RunAsync(VenueAppFactory factory, FakeConsole console, bool isAdministrator)
-    {
-        using var scope = factory.Services.CreateScope();
-        var command = ActivatorUtilities.CreateInstance<ResetSupportCommand>(
-            scope.ServiceProvider,
-            console,
-            (Func<bool>)(() => isAdministrator));
-        return await command.RunAsync();
-    }
+    private static Task<int> RunAsync(VenueAppFactory factory, FakeConsole console, bool isAdministrator) =>
+        new ResetSupportCommand(factory.Services, console, () => isAdministrator).RunAsync();
 
     private static async Task<bool> VerifyAsync(VenueAppFactory factory, int userId, string password)
     {

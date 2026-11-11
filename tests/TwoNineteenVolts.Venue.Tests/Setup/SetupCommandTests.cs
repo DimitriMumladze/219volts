@@ -1,12 +1,12 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using TwoNineteenVolts.Venue.Application.Auth;
+using TwoNineteenVolts.Venue.Commands.Setup;
 using TwoNineteenVolts.Venue.Domain.Audit;
-using TwoNineteenVolts.Venue.Domain.Auth;
-using TwoNineteenVolts.Venue.Infrastructure.Auth;
+using TwoNineteenVolts.Venue.Domain.Users;
 using TwoNineteenVolts.Venue.Infrastructure.Data;
 
-namespace TwoNineteenVolts.Venue.Tests.Auth;
+namespace TwoNineteenVolts.Venue.Tests.Setup;
 
 public class SetupCommandTests
 {
@@ -65,12 +65,8 @@ public class SetupCommandTests
         await AssertNothingChangedAsync(factory, expectedUsers: 0);
     }
 
-    private static async Task<int> RunAsync(VenueAppFactory factory, FakeConsole console)
-    {
-        using var scope = factory.Services.CreateScope();
-        var setup = ActivatorUtilities.CreateInstance<SetupCommand>(scope.ServiceProvider, console);
-        return await setup.RunAsync();
-    }
+    private static Task<int> RunAsync(VenueAppFactory factory, FakeConsole console) =>
+        new SetupCommand(factory.Services, console).RunAsync();
 
     private static async Task AssertNothingChangedAsync(VenueAppFactory factory, int expectedUsers)
     {

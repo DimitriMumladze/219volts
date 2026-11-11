@@ -1,8 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
-using TwoNineteenVolts.Venue.Domain.Auth;
+using TwoNineteenVolts.Venue.Domain.Users;
 
-namespace TwoNineteenVolts.Venue.Infrastructure.Auth;
+namespace TwoNineteenVolts.Venue.Infrastructure.Users;
 
 public class UserConfiguration : IEntityTypeConfiguration<User>
 {

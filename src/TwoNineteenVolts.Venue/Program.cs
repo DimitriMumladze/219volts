@@ -1,11 +1,14 @@
 using System.Text.Json.Serialization;
 using Scalar.AspNetCore;
+using TwoNineteenVolts.Venue.Commands.Setup;
 using TwoNineteenVolts.Venue.Endpoints.Audit;
 using TwoNineteenVolts.Venue.Endpoints.Auth;
 using TwoNineteenVolts.Venue.Endpoints.Users;
 using TwoNineteenVolts.Venue.Infrastructure.Audit;
 using TwoNineteenVolts.Venue.Infrastructure.Auth;
 using TwoNineteenVolts.Venue.Infrastructure.Data;
+using TwoNineteenVolts.Venue.Infrastructure.Setup;
+using TwoNineteenVolts.Venue.Infrastructure.Users;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -23,28 +26,22 @@ builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddData();
 builder.Services.AddAudit();
 builder.Services.AddAuth();
+builder.Services.AddUsers();
+builder.Services.AddSetup();
 
 var app = builder.Build();
 
-await app.Services.MigrateDatabaseAsync();
-
 // "setup" and "reset-support" run once in this process and exit; anything else starts the service.
+// Each command prepares the database itself, after its own checks.
 switch (args.FirstOrDefault())
 {
     case "setup":
-    {
-        using var scope = app.Services.CreateScope();
-        var setup = ActivatorUtilities.CreateInstance<SetupCommand>(scope.ServiceProvider, new SystemConsole());
-        return await setup.RunAsync();
-    }
+        return await new SetupCommand(app.Services, new SystemConsole()).RunAsync();
     case "reset-support":
-    {
-        using var scope = app.Services.CreateScope();
-        Func<bool> isAdministrator = () => Environment.IsPrivilegedProcess;
-        var resetSupport = ActivatorUtilities.CreateInstance<ResetSupportCommand>(scope.ServiceProvider, new SystemConsole(), isAdministrator);
-        return await resetSupport.RunAsync();
-    }
+        return await new ResetSupportCommand(app.Services, new SystemConsole(), () => Environment.IsPrivilegedProcess).RunAsync();
 }
+
+await app.Services.MigrateDatabaseAsync();
 
 app.UseExceptionHandler(new ExceptionHandlerOptions
 {

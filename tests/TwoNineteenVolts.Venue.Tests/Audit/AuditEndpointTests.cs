@@ -1,7 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using TwoNineteenVolts.Venue.Domain.Audit;
-using TwoNineteenVolts.Venue.Domain.Auth;
+using TwoNineteenVolts.Venue.Domain.Users;
 
 namespace TwoNineteenVolts.Venue.Tests.Audit;
 

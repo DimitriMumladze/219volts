@@ -1,4 +1,4 @@
-namespace TwoNineteenVolts.Venue.Infrastructure.Auth;
+namespace TwoNineteenVolts.Venue.Commands.Setup;
 
 // The terminal the setup commands talk to; tests replace it with a scripted one.
 public interface IConsole

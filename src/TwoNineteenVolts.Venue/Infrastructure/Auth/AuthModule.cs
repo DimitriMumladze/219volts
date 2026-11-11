@@ -2,7 +2,7 @@ using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.Extensions.Options;
 using TwoNineteenVolts.Venue.Application.Audit;
 using TwoNineteenVolts.Venue.Application.Auth;
-using TwoNineteenVolts.Venue.Domain.Auth;
+using TwoNineteenVolts.Venue.Domain.Users;
 
 namespace TwoNineteenVolts.Venue.Infrastructure.Auth;
 
@@ -62,7 +62,6 @@ public static class AuthModule
         services.AddSingleton<IPinHasher, PinHasher>();
         services.AddSingleton<LoginThrottle>();
         services.AddScoped<LoginService>();
-        services.AddScoped<UserService>();
         services.AddHostedService<SessionExpiryService>();
 
         return services;
