@@ -1,0 +1,27 @@
+# Build output
+bin/
+obj/
+
+# Test run results (dotnet test with loggers or coverage)
+TestResults/
+
+# Editors and IDEs
+.vs/
+.idea/
+*.user
+
+# Local SQLite databases (the venue database is never committed)
+*.db
+*.db-shm
+*.db-wal
+
+# Operating system files
+Thumbs.db
+.DS_Store
+
+# Superpowers skills: scratch workspace, and the specs and plans they write
+.superpowers/
+docs/superpowers/
+
+# Local notes written by Claude, kept off git
+Claude outputs/
