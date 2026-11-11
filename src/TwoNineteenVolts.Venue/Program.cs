@@ -1,5 +1,6 @@
 using System.Text.Json.Serialization;
 using Scalar.AspNetCore;
+using TwoNineteenVolts.Venue.Endpoints.Audit;
 using TwoNineteenVolts.Venue.Endpoints.Auth;
 using TwoNineteenVolts.Venue.Endpoints.Users;
 using TwoNineteenVolts.Venue.Infrastructure.Audit;
@@ -47,5 +48,6 @@ if (app.Environment.IsDevelopment())
 
 app.MapAuthEndpoints();
 app.MapUserEndpoints();
+app.MapAuditEndpoints();
 
 app.Run();

@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.AspNetCore.TestHost;
 using Microsoft.Data.Sqlite;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Time.Testing;
 
 namespace TwoNineteenVolts.Venue.Tests;
@@ -17,7 +18,20 @@ public class VenueAppFactory : WebApplicationFactory<Program>
     {
         builder.UseEnvironment("Development");
         builder.UseSetting("Venue:DataFolder", DataFolder);
-        builder.ConfigureTestServices(services => services.AddSingleton<TimeProvider>(Time));
+        builder.ConfigureTestServices(services =>
+        {
+            services.AddSingleton<TimeProvider>(Time);
+
+            // The app's background loops would tick on the fake clock whenever a test advances it,
+            // racing the test's own checks. Tests call RunOnceAsync themselves instead.
+            var backgroundServices = services
+                .Where(d => d.ServiceType == typeof(IHostedService) && d.ImplementationType?.Assembly == typeof(Program).Assembly)
+                .ToList();
+            foreach (var descriptor in backgroundServices)
+            {
+                services.Remove(descriptor);
+            }
+        });
     }
 
     protected override void Dispose(bool disposing)

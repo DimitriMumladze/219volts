@@ -63,6 +63,7 @@ public static class AuthModule
         services.AddSingleton<LoginThrottle>();
         services.AddScoped<LoginService>();
         services.AddScoped<UserService>();
+        services.AddHostedService<SessionExpiryService>();
 
         return services;
     }
