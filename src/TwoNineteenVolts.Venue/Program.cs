@@ -28,6 +28,24 @@ var app = builder.Build();
 
 await app.Services.MigrateDatabaseAsync();
 
+// "setup" and "reset-support" run once in this process and exit; anything else starts the service.
+switch (args.FirstOrDefault())
+{
+    case "setup":
+    {
+        using var scope = app.Services.CreateScope();
+        var setup = ActivatorUtilities.CreateInstance<SetupCommand>(scope.ServiceProvider, new SystemConsole());
+        return await setup.RunAsync();
+    }
+    case "reset-support":
+    {
+        using var scope = app.Services.CreateScope();
+        Func<bool> isAdministrator = () => Environment.IsPrivilegedProcess;
+        var resetSupport = ActivatorUtilities.CreateInstance<ResetSupportCommand>(scope.ServiceProvider, new SystemConsole(), isAdministrator);
+        return await resetSupport.RunAsync();
+    }
+}
+
 app.UseExceptionHandler(new ExceptionHandlerOptions
 {
     // A malformed request is the client's fault: keep its 400 instead of turning it into a 500.
@@ -50,4 +68,5 @@ app.MapAuthEndpoints();
 app.MapUserEndpoints();
 app.MapAuditEndpoints();
 
-app.Run();
+await app.RunAsync();
+return 0;
