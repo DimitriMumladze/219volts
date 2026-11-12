@@ -121,7 +121,7 @@ Features/Lamps/Contracts/LampStatus.cs     -> record LampStatus
 Application code goes in `src/`, tests in `tests/`. The solution file sits at the root.
 
 ```
-219Wats/
+219volts/
   src/
     TwoNineteenVolts.Api/          ASP.NET backend
     TwoNineteenVolts.Web/          frontend (index.html, etc.)
