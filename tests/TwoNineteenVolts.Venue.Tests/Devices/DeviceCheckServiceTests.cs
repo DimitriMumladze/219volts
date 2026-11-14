@@ -21,9 +21,11 @@ public class DeviceCheckServiceTests
         await CheckAsync(factory);
 
         var statuses = Statuses(factory);
-        Assert.True(statuses.Get(shelly.Id).IsOnline);
-        Assert.Equal([true, false], statuses.Get(shelly.Id).Channels);
-        Assert.Equal([false, false, true, false, false, false, false, true], statuses.Get(panel.Id).Channels);
+        var shellyStatus = statuses.Get(shelly.Id);
+        var panelStatus = statuses.Get(panel.Id);
+        Assert.True(shellyStatus.IsOnline);
+        Assert.Equal([true, false], shellyStatus.Channels);
+        Assert.Equal([false, false, true, false, false, false, false, true], panelStatus.Channels);
     }
 
     [Fact]
@@ -36,10 +38,12 @@ public class DeviceCheckServiceTests
 
         await CheckAsync(factory);
         await CheckAsync(factory);
-        Assert.True(Statuses(factory).Get(panel.Id).IsOnline);
+        var afterTwoMisses = Statuses(factory).Get(panel.Id);
+        Assert.True(afterTwoMisses.IsOnline);
 
         await CheckAsync(factory);
-        Assert.False(Statuses(factory).Get(panel.Id).IsOnline);
+        var afterThreeMisses = Statuses(factory).Get(panel.Id);
+        Assert.False(afterThreeMisses.IsOnline);
     }
 
     [Fact]
@@ -54,7 +58,8 @@ public class DeviceCheckServiceTests
             await CheckAsync(factory);
         }
 
-        Assert.True(Statuses(factory).Get(panel.Id).IsOnline);
+        var status = Statuses(factory).Get(panel.Id);
+        Assert.True(status.IsOnline);
     }
 
     [Fact]
@@ -66,7 +71,8 @@ public class DeviceCheckServiceTests
 
         await CheckAsync(factory);
 
-        Assert.True(Statuses(factory).Get(panel.Id).IsOnline);
+        var status = Statuses(factory).Get(panel.Id);
+        Assert.True(status.IsOnline);
     }
 
     [Fact]
@@ -78,18 +84,18 @@ public class DeviceCheckServiceTests
         factory.Shelly.Gate = new TaskCompletionSource();
         factory.Waveshare.Gate = new TaskCompletionSource();
 
-        // Both reads hold until released: a check that runs devices one after another
-        // never reaches the second device while the first one is still waiting.
         var check = CheckAsync(factory);
+        var fiveSeconds = TimeSpan.FromSeconds(5);
         var bothStarted = SpinWait.SpinUntil(
             () => factory.Shelly.Calls.Contains($"read-all {shelly.Id}") && factory.Waveshare.Calls.Contains($"read-all {panel.Id}"),
-            TimeSpan.FromSeconds(5));
+            fiveSeconds);
         factory.Shelly.Gate.SetResult();
         factory.Waveshare.Gate.SetResult();
         await check;
 
         Assert.True(bothStarted);
     }
+
 
     private static Task CheckAsync(VenueAppFactory factory) =>
         ActivatorUtilities.CreateInstance<DeviceCheckService>(factory.Services).RunOnceAsync();

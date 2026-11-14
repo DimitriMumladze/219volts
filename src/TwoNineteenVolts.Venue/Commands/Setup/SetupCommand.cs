@@ -5,8 +5,6 @@ using TwoNineteenVolts.Venue.Resources;
 
 namespace TwoNineteenVolts.Venue.Commands.Setup;
 
-// "TwoNineteenVolts.Venue.exe setup": run once by our team when installing a venue.
-// Only the conversation with the installer lives here; the rules are in SetupService.
 public class SetupCommand(IServiceProvider services, IConsole console)
 {
     private readonly IStringLocalizer<Messages> _texts = services.GetRequiredService<IStringLocalizer<Messages>>();
@@ -17,7 +15,6 @@ public class SetupCommand(IServiceProvider services, IConsole console)
         using var scope = services.CreateScope();
         var setup = scope.ServiceProvider.GetRequiredService<SetupService>();
 
-        // Checked before any question, so nobody types a name and PIN only to be refused.
         if (await setup.IsDoneAsync())
         {
             return Fail(SetupError.AlreadyDone);
@@ -36,14 +33,16 @@ public class SetupCommand(IServiceProvider services, IConsole console)
         var result = await setup.SetUpAsync(name, pin);
         if (result.IsFailure)
         {
-            return Fail(result.Error!);
+            return Fail(result.Error);
         }
 
-        console.WriteLine(_texts[SetupMessages.Created, name.Trim()]);
+        var ownerName = name.Trim();
+        console.WriteLine(_texts[SetupMessages.Created, ownerName]);
         console.WriteLine(_texts[SetupMessages.SupportPasswordIntro]);
-        console.WriteLine(result.Value!);
+        console.WriteLine(result.Value);
         return 0;
     }
+
 
     private int Fail(string key)
     {

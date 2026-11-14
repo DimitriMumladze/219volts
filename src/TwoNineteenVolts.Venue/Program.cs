@@ -19,13 +19,11 @@ builder.Services.AddProblemDetails();
 builder.Services.AddOpenApi();
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
-    // Enums travel as names ("Manager"), and a request missing a field is a 400 instead of a null.
     options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
     options.SerializerOptions.RespectNullableAnnotations = true;
     options.SerializerOptions.RespectRequiredConstructorParameters = true;
 });
 builder.Services.AddSingleton(TimeProvider.System);
-// Texts come from Resources/Messages.resx through IStringLocalizer<Messages>.
 builder.Services.AddLocalization();
 builder.Services.AddData();
 builder.Services.AddAudit();
@@ -36,8 +34,6 @@ builder.Services.AddDevices();
 
 var app = builder.Build();
 
-// "setup" and "reset-support" run once in this process and exit; anything else starts the service.
-// Each command prepares the database itself, after its own checks.
 switch (args.FirstOrDefault())
 {
     case "setup":
@@ -50,12 +46,10 @@ await app.Services.MigrateDatabaseAsync();
 
 app.UseExceptionHandler(new ExceptionHandlerOptions
 {
-    // A malformed request is the client's fault: keep its 400 instead of turning it into a 500.
     StatusCodeSelector = exception => exception is BadHttpRequestException badRequest
         ? badRequest.StatusCode
         : StatusCodes.Status500InternalServerError
 });
-// Gives empty error responses (401, 403, 404, 400) a ProblemDetails body.
 app.UseStatusCodePages();
 app.UseAuthentication();
 app.UseAuthorization();

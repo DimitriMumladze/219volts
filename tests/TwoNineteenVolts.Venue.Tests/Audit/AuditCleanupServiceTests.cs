@@ -13,12 +13,15 @@ public class AuditCleanupServiceTests
     {
         using var factory = new VenueAppFactory();
         var now = factory.Time.GetUtcNow().UtcDateTime;
-        await AuditTestData.AddAsync(
-            factory,
-            AuditTestData.Entry(now.AddDays(-366), 1, AuditActions.Login, "too old"),
-            AuditTestData.Entry(now.AddDays(-365).AddMinutes(-1), 1, AuditActions.Login, "just too old"),
-            AuditTestData.Entry(now.AddDays(-365).AddMinutes(1), 1, AuditActions.Login, "just kept"),
-            AuditTestData.Entry(now.AddDays(-1), 1, AuditActions.Login, "recent"));
+        var tooOld = now.AddDays(-366);
+        var justTooOld = now.AddDays(-365).AddMinutes(-1);
+        var justKept = now.AddDays(-365).AddMinutes(1);
+        var recent = now.AddDays(-1);
+        var tooOldEntry = AuditTestData.Entry(tooOld, 1, AuditActions.Login, "too old");
+        var justTooOldEntry = AuditTestData.Entry(justTooOld, 1, AuditActions.Login, "just too old");
+        var justKeptEntry = AuditTestData.Entry(justKept, 1, AuditActions.Login, "just kept");
+        var recentEntry = AuditTestData.Entry(recent, 1, AuditActions.Login, "recent");
+        await AuditTestData.AddAsync(factory, tooOldEntry, justTooOldEntry, justKeptEntry, recentEntry);
 
         await ActivatorUtilities.CreateInstance<AuditCleanupService>(factory.Services).RunOnceAsync();
 

@@ -13,6 +13,7 @@ public class PinFormatTests
     [InlineData("١٢٣٤", false)]
     public void Pin_format(string pin, bool valid)
     {
-        Assert.Equal(valid, PinFormat.IsValid(pin));
+        var isValid = PinFormat.IsValid(pin);
+        Assert.Equal(valid, isValid);
     }
 }

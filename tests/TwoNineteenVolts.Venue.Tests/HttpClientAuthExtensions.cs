@@ -2,7 +2,6 @@ using System.Net.Http.Json;
 
 namespace TwoNineteenVolts.Venue.Tests;
 
-// The test client keeps cookies between requests, so a successful login stays signed in.
 public static class HttpClientAuthExtensions
 {
     public static Task<HttpResponseMessage> LoginAsync(this HttpClient client, int userId, string pin) =>

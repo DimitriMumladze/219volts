@@ -4,8 +4,6 @@ using TwoNineteenVolts.Venue.Domain.Devices;
 
 namespace TwoNineteenVolts.Venue.Tests.Devices;
 
-// Stands in for a real driver in service and endpoint tests. Keeps channel states per device
-// and answers as the test says.
 public class FakeRelayDriver(DeviceKind kind) : IRelayDriver
 {
     private readonly Lock _lock = new();
@@ -13,18 +11,14 @@ public class FakeRelayDriver(DeviceKind kind) : IRelayDriver
 
     public DeviceKind Kind { get; } = kind;
 
-    // Same rules as the real driver of this kind, because services ask the driver for them.
     public int DefaultPort => Kind == DeviceKind.ShellyGen2 ? 80 : 502;
 
     public IReadOnlyList<int> AllowedChannelCounts => Kind == DeviceKind.ShellyGen2 ? [1, 2, 3, 4] : [8, 16, 30];
 
-    // When set, every call fails with this error (DeviceError.NoAnswer or DeviceError.ErrorAnswer).
     public string? Error { get; set; }
 
-    // When true, SetAsync answers OK but the relay does not change: the read-back then disagrees.
     public bool IgnoreSet { get; set; }
 
-    // When set, ReadAllAsync waits for it, so a test can hold a check in the middle.
     public TaskCompletionSource? Gate { get; set; }
 
     public List<string> Calls { get; } = [];
@@ -50,7 +44,9 @@ public class FakeRelayDriver(DeviceKind kind) : IRelayDriver
             return Result<IReadOnlyList<bool>>.Fail(Error);
         }
 
-        return Result<IReadOnlyList<bool>>.Ok([.. StatesOf(device)]);
+        var states = StatesOf(device);
+        bool[] copy = [.. states];
+        return Result<IReadOnlyList<bool>>.Ok(copy);
     }
 
     public Task<Result<bool>> ReadAsync(Device device, int channel, CancellationToken cancellationToken)
@@ -58,10 +54,13 @@ public class FakeRelayDriver(DeviceKind kind) : IRelayDriver
         Record($"read {device.Id}/{channel}");
         if (Error is not null)
         {
-            return Task.FromResult(Result<bool>.Fail(Error));
+            var failure = Result<bool>.Fail(Error);
+            return Task.FromResult(failure);
         }
 
-        return Task.FromResult(Result<bool>.Ok(StatesOf(device)[channel - 1]));
+        var state = StatesOf(device)[channel - 1];
+        var success = Result<bool>.Ok(state);
+        return Task.FromResult(success);
     }
 
     public Task<Result<bool>> SetAsync(Device device, int channel, bool on, CancellationToken cancellationToken)
@@ -69,7 +68,8 @@ public class FakeRelayDriver(DeviceKind kind) : IRelayDriver
         Record($"set {device.Id}/{channel} {(on ? "on" : "off")}");
         if (Error is not null)
         {
-            return Task.FromResult(Result<bool>.Fail(Error));
+            var failure = Result<bool>.Fail(Error);
+            return Task.FromResult(failure);
         }
 
         if (!IgnoreSet)
@@ -80,8 +80,10 @@ public class FakeRelayDriver(DeviceKind kind) : IRelayDriver
             }
         }
 
-        return Task.FromResult(Result<bool>.Ok(on));
+        var success = Result<bool>.Ok(on);
+        return Task.FromResult(success);
     }
+
 
     private bool[] StatesOf(Device device)
     {

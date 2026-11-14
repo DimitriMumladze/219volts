@@ -23,7 +23,8 @@ public class AuthModuleTests
         Assert.Equal(SameSiteMode.Strict, cookie.Cookie.SameSite);
         Assert.Equal(CookieSecurePolicy.None, cookie.Cookie.SecurePolicy);
         Assert.True(cookie.SlidingExpiration);
-        Assert.Equal(TimeSpan.FromHours(1), cookie.ExpireTimeSpan);
+        var oneHour = TimeSpan.FromHours(1);
+        Assert.Equal(oneHour, cookie.ExpireTimeSpan);
         Assert.IsType<InMemoryTicketStore>(cookie.SessionStore);
     }
 
@@ -36,6 +37,7 @@ public class AuthModuleTests
             .GetRequiredService<IOptionsMonitor<CookieAuthenticationOptions>>()
             .Get(CookieAuthenticationDefaults.AuthenticationScheme);
 
-        Assert.Same(cookie.SessionStore, factory.Services.GetRequiredService<ISessionRegistry>());
+        var registry = factory.Services.GetRequiredService<ISessionRegistry>();
+        Assert.Same(cookie.SessionStore, registry);
     }
 }

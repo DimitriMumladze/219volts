@@ -18,7 +18,6 @@ public class VenueAppFactory : WebApplicationFactory<Program>
 
     public FakeTimeProvider Time { get; } = new(new DateTimeOffset(2026, 11, 11, 10, 0, 0, TimeSpan.Zero));
 
-    // The app's real drivers would talk to the network; tests use these instead.
     public FakeRelayDriver Shelly { get; } = new(DeviceKind.ShellyGen2);
 
     public FakeRelayDriver Waveshare { get; } = new(DeviceKind.WaveshareModbusTcp);
@@ -31,8 +30,6 @@ public class VenueAppFactory : WebApplicationFactory<Program>
         {
             services.AddSingleton<TimeProvider>(Time);
 
-            // The app's background loops would tick on the fake clock whenever a test advances it,
-            // racing the test's own checks. Tests call RunOnceAsync themselves instead.
             var backgroundServices = services
                 .Where(d => d.ServiceType == typeof(IHostedService) && d.ImplementationType?.Assembly == typeof(Program).Assembly)
                 .ToList();
@@ -53,7 +50,6 @@ public class VenueAppFactory : WebApplicationFactory<Program>
 
         if (disposing && Directory.Exists(DataFolder))
         {
-            // SQLite keeps closed connections in a pool, which keeps venue.db locked on Windows.
             SqliteConnection.ClearAllPools();
             Directory.Delete(DataFolder, recursive: true);
         }

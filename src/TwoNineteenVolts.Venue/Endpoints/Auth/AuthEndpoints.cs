@@ -24,6 +24,7 @@ public static class AuthEndpoints
         group.MapGet("/me", GetCurrentUser).RequireAuthorization();
     }
 
+
     private static async Task<IResult> GetLoginUsersAsync(IVenueDbContext db)
     {
         var users = await db.Users
@@ -50,20 +51,23 @@ public static class AuthEndpoints
     private static async Task<IResult> LogoutAsync(ICurrentActor currentActor, IAuditLog audit, IVenueDbContext db, HttpContext http)
     {
         var actor = currentActor.Get();
-        audit.Record(actor, AuditActions.Logout, $"user:{actor.UserId}");
+        var target = AuditTarget.User(actor.UserId);
+        audit.Record(actor, AuditActions.Logout, target);
         await db.SaveChangesAsync();
 
         await http.SignOutAsync(CookieAuthenticationDefaults.AuthenticationScheme);
         return TypedResults.NoContent();
     }
 
-    // Read from the claims of the session: no database lookup per request.
     private static IResult GetCurrentUser(ClaimsPrincipal user)
     {
-        return TypedResults.Ok(new CurrentUserResponse(
-            int.Parse(user.FindFirstValue(AuthClaims.UserId)!),
-            user.FindFirstValue(AuthClaims.Name)!,
-            Enum.Parse<Role>(user.FindFirstValue(AuthClaims.Role)!)));
+        var idClaim = user.FindFirstValue(AuthClaims.UserId)!;
+        var name = user.FindFirstValue(AuthClaims.Name)!;
+        var roleClaim = user.FindFirstValue(AuthClaims.Role)!;
+        var id = int.Parse(idClaim);
+        var role = Enum.Parse<Role>(roleClaim);
+
+        return TypedResults.Ok(new CurrentUserResponse(id, name, role));
     }
 
     private static async Task<IResult> ToResponseAsync(LoginResult result, HttpContext http)
@@ -82,17 +86,20 @@ public static class AuthEndpoints
             return Problems.Create(AuthError.WrongPin, StatusCodes.Status401Unauthorized);
         }
 
-        await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, CreatePrincipal(user));
+        var principal = CreatePrincipal(user);
+        await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, principal);
         return TypedResults.Ok(new CurrentUserResponse(user.Id, user.DisplayName, user.Role));
     }
 
     private static ClaimsPrincipal CreatePrincipal(User user)
     {
+        var userId = user.Id.ToString();
+        var role = user.Role.ToString();
         var identity = new ClaimsIdentity(
             [
-                new Claim(AuthClaims.UserId, user.Id.ToString()),
+                new Claim(AuthClaims.UserId, userId),
                 new Claim(AuthClaims.Name, user.DisplayName),
-                new Claim(AuthClaims.Role, user.Role.ToString())
+                new Claim(AuthClaims.Role, role)
             ],
             CookieAuthenticationDefaults.AuthenticationScheme);
 

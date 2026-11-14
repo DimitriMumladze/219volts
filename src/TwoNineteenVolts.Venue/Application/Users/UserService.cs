@@ -8,7 +8,6 @@ using TwoNineteenVolts.Venue.Domain.Users;
 
 namespace TwoNineteenVolts.Venue.Application.Users;
 
-// The venue has one Manager, created by the setup command. The Manager creates and manages Staff.
 public class UserService(
     IVenueDbContext db,
     IPinHasher hasher,
@@ -35,14 +34,16 @@ public class UserService(
             return Fail(UserError.DuplicateName);
         }
 
-        var user = new User(name, Role.Staff, hasher.Hash(pin), time.GetUtcNow().UtcDateTime);
+        var pinHash = hasher.Hash(pin);
+        var now = time.GetUtcNow().UtcDateTime;
+        var user = new User(name, Role.Staff, pinHash, now);
 
-        // The audit entry targets the new id, which SQLite assigns only on insert,
-        // so the user and its entry are saved in two steps inside one transaction.
         await using var transaction = await db.Database.BeginTransactionAsync();
         db.Users.Add(user);
         await db.SaveChangesAsync();
-        audit.Record(currentActor.Get(), AuditActions.UserCreated, TargetOf(user));
+        var actor = currentActor.Get();
+        var target = TargetOf(user);
+        audit.Record(actor, AuditActions.UserCreated, target);
         await db.SaveChangesAsync();
         await transaction.CommitAsync();
 
@@ -72,7 +73,6 @@ public class UserService(
         user.Rename(name);
         var result = await SaveAsync(user, AuditActions.UserRenamed, details: oldName);
 
-        // The sessions carry the old name in their claims, so the user must log in again.
         sessions.EndSessionsFor(id);
         return result;
     }
@@ -90,10 +90,10 @@ public class UserService(
             return Fail(UserError.InvalidPin);
         }
 
-        user.SetSecret(hasher.Hash(pin));
+        var pinHash = hasher.Hash(pin);
+        user.SetSecret(pinHash);
         var result = await SaveAsync(user, AuditActions.UserPinSet);
 
-        // A PIN is reset when it may have leaked, so whoever is signed in with it must log in again.
         sessions.EndSessionsFor(id);
         return result;
     }
@@ -106,7 +106,6 @@ public class UserService(
             return Fail(UserError.NotFound);
         }
 
-        // Without the Manager nobody could manage users any more.
         if (user.Role == Role.Manager)
         {
             return Fail(UserError.ManagerCannotBeDeactivated);
@@ -131,22 +130,23 @@ public class UserService(
         return await SaveAsync(user, AuditActions.UserReactivated);
     }
 
-    // The Support user is invisible here: it is "not found" for every operation.
+
     private Task<User?> FindManageableAsync(int id) =>
         db.Users.SingleOrDefaultAsync(u => u.Id == id && u.Role != Role.Support);
 
-    // DisplayName uses the NOCASE collation, so this comparison ignores case.
     private Task<bool> IsNameTakenAsync(string name, int? ignoredUserId) =>
         db.Users.AnyAsync(u => u.DisplayName == name && u.Id != ignoredUserId);
 
     private async Task<Result<User>> SaveAsync(User user, string action, string? details = null)
     {
-        audit.Record(currentActor.Get(), action, TargetOf(user), details);
+        var actor = currentActor.Get();
+        var target = TargetOf(user);
+        audit.Record(actor, action, target, details);
         await db.SaveChangesAsync();
         return Result<User>.Ok(user);
     }
 
-    private static string TargetOf(User user) => $"user:{user.Id}";
+    private static string TargetOf(User user) => AuditTarget.User(user.Id);
 
     private static Result<User> Fail(string error) => Result<User>.Fail(error);
 }

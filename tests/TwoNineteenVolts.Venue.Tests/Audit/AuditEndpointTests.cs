@@ -18,18 +18,25 @@ public class AuditEndpointTests
     {
         using var factory = new VenueAppFactory();
         using var client = await LoggedInManagerAsync(factory);
-        await AuditTestData.AddAsync(
-            factory,
-            AuditTestData.Entry(Nov1, 7, AuditActions.UserRenamed, "e1"),
-            AuditTestData.Entry(Nov1.AddDays(1), 7, AuditActions.UserPinSet, "e2"),
-            AuditTestData.Entry(Nov1.AddDays(2), 8, AuditActions.UserRenamed, "e3"));
+        var nov2 = Nov1.AddDays(1);
+        var nov3 = Nov1.AddDays(2);
+        var e1 = AuditTestData.Entry(Nov1, 7, AuditActions.UserRenamed, "e1");
+        var e2 = AuditTestData.Entry(nov2, 7, AuditActions.UserPinSet, "e2");
+        var e3 = AuditTestData.Entry(nov3, 8, AuditActions.UserRenamed, "e3");
+        await AuditTestData.AddAsync(factory, e1, e2, e3);
 
-        Assert.Equal(["e2", "e1"], await DetailsAsync(client, "?userId=7"));
-        Assert.Equal(["e3", "e1"], await DetailsAsync(client, "?action=user.renamed"));
-        Assert.Equal(["e3", "e2"], await DetailsAsync(client, "?from=2026-11-02T08:00:00Z&to=2026-11-03T08:00:00Z"));
-        Assert.Equal(["e3", "e2"], await DetailsAsync(client, "?from=2026-11-02T08:00:00&to=2026-11-03T08:00:00"));
-        Assert.Equal(["e3", "e2"], await DetailsAsync(client, "?from=2026-11-02T12:00:00%2B04:00&to=2026-11-03T12:00:00%2B04:00"));
-        Assert.Equal(["e3"], await DetailsAsync(client, "?userId=8&action=user.renamed&from=2026-11-01T00:00:00Z"));
+        var byUser = await DetailsAsync(client, "?userId=7");
+        var byAction = await DetailsAsync(client, "?action=user.renamed");
+        var byUtcDates = await DetailsAsync(client, "?from=2026-11-02T08:00:00Z&to=2026-11-03T08:00:00Z");
+        var byDatesWithoutZone = await DetailsAsync(client, "?from=2026-11-02T08:00:00&to=2026-11-03T08:00:00");
+        var byDatesWithOffset = await DetailsAsync(client, "?from=2026-11-02T12:00:00%2B04:00&to=2026-11-03T12:00:00%2B04:00");
+        var byAllFilters = await DetailsAsync(client, "?userId=8&action=user.renamed&from=2026-11-01T00:00:00Z");
+        Assert.Equal(["e2", "e1"], byUser);
+        Assert.Equal(["e3", "e1"], byAction);
+        Assert.Equal(["e3", "e2"], byUtcDates);
+        Assert.Equal(["e3", "e2"], byDatesWithoutZone);
+        Assert.Equal(["e3", "e2"], byDatesWithOffset);
+        Assert.Equal(["e3"], byAllFilters);
     }
 
     [Fact]
@@ -37,7 +44,8 @@ public class AuditEndpointTests
     {
         using var factory = new VenueAppFactory();
         using var client = await LoggedInManagerAsync(factory);
-        await AuditTestData.AddAsync(factory, AuditTestData.Entry(Nov1, 7, AuditActions.UserRenamed, "e1"));
+        var entry = AuditTestData.Entry(Nov1, 7, AuditActions.UserRenamed, "e1");
+        await AuditTestData.AddAsync(factory, entry);
 
         var json = await client.GetStringAsync("/api/audit?userId=7");
 
@@ -77,14 +85,17 @@ public class AuditEndpointTests
         using var client = factory.CreateClient();
         await client.LoginAsync(gio, "5678");
 
-        Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/audit")).StatusCode);
+        var response = await client.GetAsync("/api/audit");
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
     }
+
 
     private static async Task<HttpClient> LoggedInManagerAsync(VenueAppFactory factory)
     {
         var nino = await TestUsers.AddAsync(factory, "Nino", Role.Manager, "1234");
         var client = factory.CreateClient();
-        Assert.Equal(HttpStatusCode.OK, (await client.LoginAsync(nino, "1234")).StatusCode);
+        var login = await client.LoginAsync(nino, "1234");
+        Assert.Equal(HttpStatusCode.OK, login.StatusCode);
         return client;
     }
 

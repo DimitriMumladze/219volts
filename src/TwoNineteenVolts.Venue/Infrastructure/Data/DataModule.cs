@@ -18,7 +18,8 @@ public static class DataModule
         services.AddDbContext<VenueDbContext>((provider, options) =>
         {
             var dataFolder = provider.GetRequiredService<IOptions<VenueOptions>>().Value.DataFolder;
-            options.UseSqlite($"Data Source={Path.Combine(dataFolder, DatabaseFileName)}");
+            var databasePath = Path.Combine(dataFolder, DatabaseFileName);
+            options.UseSqlite($"Data Source={databasePath}");
         });
         services.AddScoped<IVenueDbContext>(provider => provider.GetRequiredService<VenueDbContext>());
 

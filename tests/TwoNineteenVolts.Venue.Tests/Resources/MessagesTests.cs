@@ -12,7 +12,6 @@ namespace TwoNineteenVolts.Venue.Tests.Resources;
 
 public class MessagesTests
 {
-    // Every class whose constants are keys into Messages.resx.
     private static readonly Type[] KeyClasses =
     [
         typeof(UserError),

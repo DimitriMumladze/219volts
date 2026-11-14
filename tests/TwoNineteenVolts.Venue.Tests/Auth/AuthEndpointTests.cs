@@ -41,10 +41,13 @@ public class AuthEndpointTests
 
         var login = await client.LoginAsync(nino, "0123");
 
+        var cookies = login.Headers.GetValues("Set-Cookie");
+        var loggedIn = await login.Content.ReadFromJsonAsync<CurrentUser>();
+        var me = await client.GetFromJsonAsync<CurrentUser>("/api/auth/me");
         Assert.Equal(HttpStatusCode.OK, login.StatusCode);
-        Assert.Contains(login.Headers.GetValues("Set-Cookie"), cookie => cookie.StartsWith("219volts.session="));
-        Assert.Equal(new CurrentUser(nino, "Nino", "Manager"), await login.Content.ReadFromJsonAsync<CurrentUser>());
-        Assert.Equal(new CurrentUser(nino, "Nino", "Manager"), await client.GetFromJsonAsync<CurrentUser>("/api/auth/me"));
+        Assert.Contains(cookies, cookie => cookie.StartsWith("219volts.session="));
+        Assert.Equal(new CurrentUser(nino, "Nino", "Manager"), loggedIn);
+        Assert.Equal(new CurrentUser(nino, "Nino", "Manager"), me);
     }
 
     [Fact]
@@ -57,7 +60,8 @@ public class AuthEndpointTests
         var login = await client.LoginAsync(nino, "0124");
 
         await AssertWrongPinAsync(login);
-        Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/auth/me")).StatusCode);
+        var me = await client.GetAsync("/api/auth/me");
+        Assert.Equal(HttpStatusCode.Unauthorized, me.StatusCode);
     }
 
     [Fact]
@@ -95,9 +99,13 @@ public class AuthEndpointTests
         var support = await TestUsers.AddAsync(factory, "219volts Support", Role.Support, "2222");
         using var client = factory.CreateClient();
 
-        await AssertWrongPinAsync(await client.LoginAsync(inactive, "1111"));
-        await AssertWrongPinAsync(await client.LoginAsync(support, "2222"));
-        await AssertWrongPinAsync(await client.LoginAsync(999, "1234"));
+        var inactiveLogin = await client.LoginAsync(inactive, "1111");
+        var supportLogin = await client.LoginAsync(support, "2222");
+        var unknownLogin = await client.LoginAsync(999, "1234");
+
+        await AssertWrongPinAsync(inactiveLogin);
+        await AssertWrongPinAsync(supportLogin);
+        await AssertWrongPinAsync(unknownLogin);
     }
 
     [Fact]
@@ -109,19 +117,24 @@ public class AuthEndpointTests
 
         for (var attempt = 1; attempt <= 4; attempt++)
         {
-            await AssertWrongPinAsync(await client.LoginAsync(nino, "9999"));
+            var wrongPin = await client.LoginAsync(nino, "9999");
+            await AssertWrongPinAsync(wrongPin);
         }
 
         var retry = await client.LoginAsync(nino, "0123");
 
-        Assert.Equal(HttpStatusCode.TooManyRequests, retry.StatusCode);
-        Assert.Equal("1", retry.Headers.GetValues("Retry-After").Single());
+        var retryAfter = retry.Headers.GetValues("Retry-After").Single();
         var problem = await retry.Content.ReadFromJsonAsync<ProblemDetails>();
-        Assert.Equal("Try again in 1 second", problem!.Title);
-        Assert.Equal("AuthTryAgainInOneSecond", problem.Extensions["code"]!.ToString());
+        var code = problem!.Extensions["code"]!.ToString();
+        Assert.Equal(HttpStatusCode.TooManyRequests, retry.StatusCode);
+        Assert.Equal("1", retryAfter);
+        Assert.Equal("Try again in 1 second", problem.Title);
+        Assert.Equal("AuthTryAgainInOneSecond", code);
 
-        factory.Time.Advance(TimeSpan.FromSeconds(1));
-        Assert.Equal(HttpStatusCode.OK, (await client.LoginAsync(nino, "0123")).StatusCode);
+        var oneSecond = TimeSpan.FromSeconds(1);
+        factory.Time.Advance(oneSecond);
+        var afterWaiting = await client.LoginAsync(nino, "0123");
+        Assert.Equal(HttpStatusCode.OK, afterWaiting.StatusCode);
     }
 
     [Fact]
@@ -132,17 +145,21 @@ public class AuthEndpointTests
         using var client = factory.CreateClient();
         for (var attempt = 1; attempt <= 4; attempt++)
         {
-            await AssertWrongPinAsync(await client.LoginAsync(nino, "9999"));
+            var wrongPin = await client.LoginAsync(nino, "9999");
+            await AssertWrongPinAsync(wrongPin);
         }
 
-        factory.Time.Advance(TimeSpan.FromSeconds(1));
-        await AssertWrongPinAsync(await client.LoginAsync(nino, "9999"));
+        var oneSecond = TimeSpan.FromSeconds(1);
+        factory.Time.Advance(oneSecond);
+        var fifthWrongPin = await client.LoginAsync(nino, "9999");
+        await AssertWrongPinAsync(fifthWrongPin);
         var retry = await client.LoginAsync(nino, "0123");
 
-        Assert.Equal(HttpStatusCode.TooManyRequests, retry.StatusCode);
         var problem = await retry.Content.ReadFromJsonAsync<ProblemDetails>();
-        Assert.Equal("Try again in 2 seconds", problem!.Title);
-        Assert.Equal("AuthTryAgainInSeconds", problem.Extensions["code"]!.ToString());
+        var code = problem!.Extensions["code"]!.ToString();
+        Assert.Equal(HttpStatusCode.TooManyRequests, retry.StatusCode);
+        Assert.Equal("Try again in 2 seconds", problem.Title);
+        Assert.Equal("AuthTryAgainInSeconds", code);
     }
 
     [Fact]
@@ -154,8 +171,10 @@ public class AuthEndpointTests
 
         for (var attempt = 1; attempt <= 10; attempt++)
         {
-            await AssertWrongPinAsync(await client.LoginAsync(999, "1234"));
-            await AssertWrongPinAsync(await client.LoginAsync(inactive, "1111"));
+            var unknownLogin = await client.LoginAsync(999, "1234");
+            var inactiveLogin = await client.LoginAsync(inactive, "1111");
+            await AssertWrongPinAsync(unknownLogin);
+            await AssertWrongPinAsync(inactiveLogin);
         }
     }
 
@@ -166,12 +185,14 @@ public class AuthEndpointTests
         var support = await TestUsers.AddAsync(factory, "219volts Support", Role.Support, SupportPassword);
         using var client = factory.CreateClient();
 
-        await AssertWrongPinAsync(await client.SupportLoginAsync("wrong-password"));
+        var wrongPassword = await client.SupportLoginAsync("wrong-password");
+        await AssertWrongPinAsync(wrongPassword);
 
         var login = await client.SupportLoginAsync(SupportPassword);
 
+        var me = await client.GetFromJsonAsync<CurrentUser>("/api/auth/me");
         Assert.Equal(HttpStatusCode.OK, login.StatusCode);
-        Assert.Equal(new CurrentUser(support, "219volts Support", "Support"), await client.GetFromJsonAsync<CurrentUser>("/api/auth/me"));
+        Assert.Equal(new CurrentUser(support, "219volts Support", "Support"), me);
     }
 
     [Fact]
@@ -184,8 +205,9 @@ public class AuthEndpointTests
 
         var logout = await client.PostAsync("/api/auth/logout", null);
 
+        var me = await client.GetAsync("/api/auth/me");
         Assert.Equal(HttpStatusCode.NoContent, logout.StatusCode);
-        Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/auth/me")).StatusCode);
+        Assert.Equal(HttpStatusCode.Unauthorized, me.StatusCode);
     }
 
     [Fact]
@@ -196,13 +218,19 @@ public class AuthEndpointTests
         using var client = factory.CreateClient();
         await client.LoginAsync(nino, "0123");
 
-        factory.Time.Advance(TimeSpan.FromMinutes(50));
-        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/auth/me")).StatusCode);
-        factory.Time.Advance(TimeSpan.FromMinutes(50));
-        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/auth/me")).StatusCode);
-        factory.Time.Advance(TimeSpan.FromMinutes(61));
+        var fiftyMinutes = TimeSpan.FromMinutes(50);
+        var sixtyOneMinutes = TimeSpan.FromMinutes(61);
 
-        Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/auth/me")).StatusCode);
+        factory.Time.Advance(fiftyMinutes);
+        var afterFifty = await client.GetAsync("/api/auth/me");
+        Assert.Equal(HttpStatusCode.OK, afterFifty.StatusCode);
+        factory.Time.Advance(fiftyMinutes);
+        var afterHundred = await client.GetAsync("/api/auth/me");
+        Assert.Equal(HttpStatusCode.OK, afterHundred.StatusCode);
+        factory.Time.Advance(sixtyOneMinutes);
+
+        var afterIdle = await client.GetAsync("/api/auth/me");
+        Assert.Equal(HttpStatusCode.Unauthorized, afterIdle.StatusCode);
     }
 
     [Fact]
@@ -242,11 +270,13 @@ public class AuthEndpointTests
             });
     }
 
+
     private static async Task AssertWrongPinAsync(HttpResponseMessage response)
     {
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
         var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
         Assert.Equal("Wrong PIN", problem!.Title);
-        Assert.Equal("AuthWrongPin", problem.Extensions["code"]!.ToString());
+        var code = problem.Extensions["code"]!.ToString();
+        Assert.Equal("AuthWrongPin", code);
     }
 }

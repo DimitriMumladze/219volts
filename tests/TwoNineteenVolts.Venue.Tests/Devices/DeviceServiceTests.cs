@@ -27,7 +27,8 @@ public class DeviceServiceTests
         Assert.Equal("192.168.10.21", device.IpAddress);
         Assert.Equal(502, device.Port);
         Assert.Equal(16, device.ChannelCount);
-        Assert.Equal(factory.Time.GetUtcNow().UtcDateTime, device.CreatedAt);
+        var now = factory.Time.GetUtcNow().UtcDateTime;
+        Assert.Equal(now, device.CreatedAt);
         var entry = await SingleAuditAsync(factory, AuditActions.DeviceRegistered);
         Assert.Equal($"device:{device.Id}", entry.Target);
     }
@@ -152,7 +153,8 @@ public class DeviceServiceTests
 
         var result = await UseServiceAsync(factory, devices => devices.RegisterAsync("Panel 1", Shelly, "192.168.10.30", null, 4));
 
-        Assert.Equal(DeviceStatus.Unknown, Statuses(factory).Get(result.Value!.Id));
+        var status = Statuses(factory).Get(result.Value!.Id);
+        Assert.Equal(DeviceStatus.Unknown, status);
     }
 
     [Fact]
@@ -182,14 +184,17 @@ public class DeviceServiceTests
         statuses.RecordOutcome(id, error: null);
 
         await UseServiceAsync(factory, devices => devices.UpdateAsync(id, "Panel A", "192.168.1.20", 502));
-        Assert.True(statuses.Get(id).IsOnline);
+        var afterRename = statuses.Get(id);
+        Assert.True(afterRename.IsOnline);
 
         await UseServiceAsync(factory, devices => devices.UpdateAsync(id, "Panel A", "192.168.1.21", 502));
-        Assert.Equal(DeviceStatus.Unknown, statuses.Get(id));
+        var afterIpChange = statuses.Get(id);
+        Assert.Equal(DeviceStatus.Unknown, afterIpChange);
 
         statuses.RecordOutcome(id, error: null);
         await UseServiceAsync(factory, devices => devices.UpdateAsync(id, "Panel A", "192.168.1.21", 503));
-        Assert.Equal(DeviceStatus.Unknown, statuses.Get(id));
+        var afterPortChange = statuses.Get(id);
+        Assert.Equal(DeviceStatus.Unknown, afterPortChange);
     }
 
     [Fact]
@@ -236,21 +241,27 @@ public class DeviceServiceTests
         Assert.False(result.IsFailure);
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<VenueDbContext>();
-        Assert.False(await db.Devices.AnyAsync(d => d.Id == id));
+        var deviceExists = await db.Devices.AnyAsync(d => d.Id == id);
         var spots = await db.Spots.OrderBy(s => s.Id).ToListAsync();
-        Assert.All(spots.Where(s => s.Id != other), s => Assert.False(s.IsMapped));
-        Assert.All(spots.Where(s => s.Id != other), s => Assert.Null(s.Channel));
-        Assert.True(spots.Single(s => s.Id == other).IsMapped);
-        Assert.Equal(DeviceStatus.Unknown, Statuses(factory).Get(id));
+        var spotsOfDeletedDevice = spots.Where(s => s.Id != other).ToList();
+        var spotOfOtherDevice = spots.Single(s => s.Id == other);
+        var status = Statuses(factory).Get(id);
+        Assert.False(deviceExists);
+        Assert.All(spotsOfDeletedDevice, s => Assert.False(s.IsMapped));
+        Assert.All(spotsOfDeletedDevice, s => Assert.Null(s.Channel));
+        Assert.True(spotOfOtherDevice.IsMapped);
+        Assert.Equal(DeviceStatus.Unknown, status);
         var entry = await SingleAuditAsync(factory, AuditActions.DeviceDeleted);
         Assert.Equal($"device:{id}", entry.Target);
         Assert.Equal($"unmapped spots: spot:{billiard}, spot:{tennis}", entry.Details);
     }
 
+
     private static async Task<Result<Device>> UseServiceAsync(VenueAppFactory factory, Func<DeviceService, Task<Result<Device>>> action)
     {
         using var scope = factory.Services.CreateScope();
-        return await action(scope.ServiceProvider.GetRequiredService<DeviceService>());
+        var service = scope.ServiceProvider.GetRequiredService<DeviceService>();
+        return await action(service);
     }
 
     private static DeviceStatuses Statuses(VenueAppFactory factory) =>
@@ -274,7 +285,8 @@ public class DeviceServiceTests
     {
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<VenueDbContext>();
-        var spot = new Spot(code, name, deviceId, channel, factory.Time.GetUtcNow().UtcDateTime);
+        var now = factory.Time.GetUtcNow().UtcDateTime;
+        var spot = new Spot(code, name, deviceId, channel, now);
         db.Spots.Add(spot);
         await db.SaveChangesAsync();
         return spot.Id;

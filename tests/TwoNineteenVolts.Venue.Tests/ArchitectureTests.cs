@@ -2,8 +2,6 @@ using NetArchTest.Rules;
 
 namespace TwoNineteenVolts.Venue.Tests;
 
-// The dependency rule of CODING_STANDARDS.md §3.4. The layers are folders in one project,
-// so the compiler cannot enforce it; these tests do.
 public class ArchitectureTests
 {
     private const string Root = "TwoNineteenVolts.Venue";
@@ -39,7 +37,6 @@ public class ArchitectureTests
         AssertNoDependency(Application, "Microsoft.AspNetCore");
     }
 
-    // Services return keys; only the layers that show something to a person turn them into text.
     [Fact]
     public void Only_endpoints_and_commands_use_resources()
     {
@@ -47,6 +44,7 @@ public class ArchitectureTests
         AssertNoDependency(Application, Resources);
         AssertNoDependency(Infrastructure, Resources);
     }
+
 
     private static void AssertNoDependency(string layer, params string[] forbidden)
     {

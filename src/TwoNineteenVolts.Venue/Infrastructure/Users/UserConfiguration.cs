@@ -6,8 +6,6 @@ namespace TwoNineteenVolts.Venue.Infrastructure.Users;
 
 public class UserConfiguration : IEntityTypeConfiguration<User>
 {
-    // SQLite's built-in case-insensitive collation; the unique index below uses it too,
-    // so "Nino" and "NINO" count as the same name.
     private const string CaseInsensitiveCollation = "NOCASE";
 
     public void Configure(EntityTypeBuilder<User> builder)

@@ -10,13 +10,16 @@ public class SecretGeneratorTests
         var password = SecretGenerator.NewSupportPassword();
 
         Assert.Equal(24, password.Length);
-        Assert.All(password, c => Assert.True(char.IsAsciiLetterOrDigit(c)));
+        var onlyLettersAndDigits = password.All(char.IsAsciiLetterOrDigit);
+        Assert.True(onlyLettersAndDigits);
         Assert.DoesNotContain(password, c => "0O1lI".Contains(c));
     }
 
     [Fact]
     public void Each_password_is_different()
     {
-        Assert.NotEqual(SecretGenerator.NewSupportPassword(), SecretGenerator.NewSupportPassword());
+        var first = SecretGenerator.NewSupportPassword();
+        var second = SecretGenerator.NewSupportPassword();
+        Assert.NotEqual(first, second);
     }
 }

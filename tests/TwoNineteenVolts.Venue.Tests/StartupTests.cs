@@ -13,6 +13,8 @@ public class StartupTests
         var response = await client.GetAsync("/openapi/v1.json");
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.True(File.Exists(Path.Combine(factory.DataFolder, "venue.db")));
+        var databasePath = Path.Combine(factory.DataFolder, "venue.db");
+        var exists = File.Exists(databasePath);
+        Assert.True(exists);
     }
 }

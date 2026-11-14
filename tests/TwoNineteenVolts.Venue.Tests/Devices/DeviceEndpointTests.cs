@@ -33,22 +33,29 @@ public class DeviceEndpointTests
         Assert.Equal(HttpStatusCode.Created, register.StatusCode);
         var panel = (await register.Content.ReadFromJsonAsync<DeviceDto>())!;
         Assert.Equal($"/api/devices/{panel.Id}", register.Headers.Location!.OriginalString);
-        Assert.Equal(new DeviceDto(panel.Id, "Panel 1", "WaveshareModbusTcp", "192.168.10.21", 502, 16, false, null, factory.Time.GetUtcNow().UtcDateTime), panel);
+        var now = factory.Time.GetUtcNow().UtcDateTime;
+        Assert.Equal(new DeviceDto(panel.Id, "Panel 1", "WaveshareModbusTcp", "192.168.10.21", 502, 16, false, null, now), panel);
 
         await client.PostAsJsonAsync("/api/devices", new { name = "Bar Shelly", kind = "ShellyGen2", ipAddress = "192.168.10.30", port = 8080, channelCount = 4 });
-        factory.Services.GetRequiredService<DeviceStatuses>().RecordOutcome(panel.Id, error: null);
+        var statuses = factory.Services.GetRequiredService<DeviceStatuses>();
+        statuses.RecordOutcome(panel.Id, error: null);
         var listed = (await client.GetFromJsonAsync<List<DeviceDto>>("/api/devices"))!;
-        Assert.Equal(["Bar Shelly", "Panel 1"], listed.Select(d => d.Name));
-        Assert.True(listed.Single(d => d.Id == panel.Id).IsOnline);
-        Assert.Equal(factory.Time.GetUtcNow().UtcDateTime, listed.Single(d => d.Id == panel.Id).LastSeen);
+        var names = listed.Select(d => d.Name);
+        var listedPanel = listed.Single(d => d.Id == panel.Id);
+        Assert.Equal(["Bar Shelly", "Panel 1"], names);
+        Assert.True(listedPanel.IsOnline);
+        Assert.Equal(now, listedPanel.LastSeen);
 
         var update = await client.PutAsJsonAsync($"/api/devices/{panel.Id}", new { name = "Panel A", ipAddress = "192.168.10.22", port = 502 });
         Assert.Equal(HttpStatusCode.OK, update.StatusCode);
         var updated = (await update.Content.ReadFromJsonAsync<DeviceDto>())!;
         Assert.Equal(("Panel A", "192.168.10.22", false), (updated.Name, updated.IpAddress, updated.IsOnline));
 
-        Assert.Equal(HttpStatusCode.NoContent, (await client.DeleteAsync($"/api/devices/{panel.Id}")).StatusCode);
-        Assert.Equal(["Bar Shelly"], (await client.GetFromJsonAsync<List<DeviceDto>>("/api/devices"))!.Select(d => d.Name));
+        var delete = await client.DeleteAsync($"/api/devices/{panel.Id}");
+        Assert.Equal(HttpStatusCode.NoContent, delete.StatusCode);
+        var remaining = (await client.GetFromJsonAsync<List<DeviceDto>>("/api/devices"))!;
+        var remainingNames = remaining.Select(d => d.Name);
+        Assert.Equal(["Bar Shelly"], remainingNames);
     }
 
     [Fact]
@@ -60,10 +67,14 @@ public class DeviceEndpointTests
         using var client = factory.CreateClient();
         await client.LoginAsync(nino, "1234");
 
-        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/devices")).StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, (await client.PostAsJsonAsync("/api/devices", new { name = "Panel 2", kind = "ShellyGen2", ipAddress = "192.168.10.30", channelCount = 1 })).StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, (await client.PutAsJsonAsync($"/api/devices/{id}", new { name = "Panel A", ipAddress = "192.168.10.21", port = 502 })).StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, (await client.DeleteAsync($"/api/devices/{id}")).StatusCode);
+        var list = await client.GetAsync("/api/devices");
+        var register = await client.PostAsJsonAsync("/api/devices", new { name = "Panel 2", kind = "ShellyGen2", ipAddress = "192.168.10.30", channelCount = 1 });
+        var update = await client.PutAsJsonAsync($"/api/devices/{id}", new { name = "Panel A", ipAddress = "192.168.10.21", port = 502 });
+        var delete = await client.DeleteAsync($"/api/devices/{id}");
+        Assert.Equal(HttpStatusCode.OK, list.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, register.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, update.StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, delete.StatusCode);
     }
 
     [Fact]
@@ -74,7 +85,8 @@ public class DeviceEndpointTests
         using var client = factory.CreateClient();
         await client.LoginAsync(gio, "5678");
 
-        Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/devices")).StatusCode);
+        var list = await client.GetAsync("/api/devices");
+        Assert.Equal(HttpStatusCode.Forbidden, list.StatusCode);
     }
 
     [Fact]
@@ -83,7 +95,8 @@ public class DeviceEndpointTests
         using var factory = new VenueAppFactory();
         using var client = factory.CreateClient();
 
-        Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/devices")).StatusCode);
+        var list = await client.GetAsync("/api/devices");
+        Assert.Equal(HttpStatusCode.Unauthorized, list.StatusCode);
     }
 
     [Fact]
@@ -93,18 +106,13 @@ public class DeviceEndpointTests
         await TestDevices.AddAsync(factory, "Panel 1", DeviceKind.WaveshareModbusTcp, "192.168.10.21", 502, 16);
         using var client = await SupportClientAsync(factory);
 
-        await AssertProblemAsync(
-            await client.PostAsJsonAsync("/api/devices", new { name = "Panel 2", kind = "ShellyGen2", ipAddress = "::1", channelCount = 1 }),
-            HttpStatusCode.BadRequest,
-            DeviceError.InvalidIpAddress);
-        await AssertProblemAsync(
-            await client.PostAsJsonAsync("/api/devices", new { name = "panel 1", kind = "ShellyGen2", ipAddress = "192.168.10.30", channelCount = 1 }),
-            HttpStatusCode.Conflict,
-            DeviceError.DuplicateName);
-        await AssertProblemAsync(
-            await client.PutAsJsonAsync("/api/devices/999", new { name = "Panel 9", ipAddress = "192.168.10.99", port = 502 }),
-            HttpStatusCode.NotFound,
-            DeviceError.NotFound);
+        var invalidIp = await client.PostAsJsonAsync("/api/devices", new { name = "Panel 2", kind = "ShellyGen2", ipAddress = "::1", channelCount = 1 });
+        var duplicateName = await client.PostAsJsonAsync("/api/devices", new { name = "panel 1", kind = "ShellyGen2", ipAddress = "192.168.10.30", channelCount = 1 });
+        var unknownDevice = await client.PutAsJsonAsync("/api/devices/999", new { name = "Panel 9", ipAddress = "192.168.10.99", port = 502 });
+
+        await AssertProblemAsync(invalidIp, HttpStatusCode.BadRequest, DeviceError.InvalidIpAddress);
+        await AssertProblemAsync(duplicateName, HttpStatusCode.Conflict, DeviceError.DuplicateName);
+        await AssertProblemAsync(unknownDevice, HttpStatusCode.NotFound, DeviceError.NotFound);
     }
 
     [Fact]
@@ -118,11 +126,13 @@ public class DeviceEndpointTests
         Assert.Equal(HttpStatusCode.BadRequest, register.StatusCode);
     }
 
+
     private static async Task<HttpClient> SupportClientAsync(VenueAppFactory factory)
     {
         await TestUsers.AddAsync(factory, "219volts Support", Role.Support, SupportPassword);
         var client = factory.CreateClient();
-        Assert.Equal(HttpStatusCode.OK, (await client.SupportLoginAsync(SupportPassword)).StatusCode);
+        var login = await client.SupportLoginAsync(SupportPassword);
+        Assert.Equal(HttpStatusCode.OK, login.StatusCode);
         return client;
     }
 
@@ -130,7 +140,9 @@ public class DeviceEndpointTests
     {
         Assert.Equal(status, response.StatusCode);
         var problem = (await response.Content.ReadFromJsonAsync<ProblemDetails>())!;
-        Assert.Equal(code, problem.Extensions["code"]!.ToString());
-        Assert.False(string.IsNullOrEmpty(problem.Title));
+        var problemCode = problem.Extensions["code"]!.ToString();
+        var hasTitle = !string.IsNullOrEmpty(problem.Title);
+        Assert.Equal(code, problemCode);
+        Assert.True(hasTitle);
     }
 }

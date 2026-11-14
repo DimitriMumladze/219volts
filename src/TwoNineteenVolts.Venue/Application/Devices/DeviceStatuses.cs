@@ -2,8 +2,6 @@ using Microsoft.Extensions.Logging;
 
 namespace TwoNineteenVolts.Venue.Application.Devices;
 
-// The live status of every device, in memory only: a restart starts everything over.
-// The background check and staff switches update it at the same time, so every access takes the lock.
 public class DeviceStatuses(TimeProvider time, ILogger<DeviceStatuses> logger)
 {
     private const int MissesBeforeOffline = 3;
@@ -24,12 +22,11 @@ public class DeviceStatuses(TimeProvider time, ILogger<DeviceStatuses> logger)
         }
     }
 
-    // error: null or DeviceError.ErrorAnswer = the device answered; DeviceError.NoAnswer = a miss.
     public void RecordOutcome(int deviceId, string? error)
     {
         lock (_lock)
         {
-            var entry = EntryFor(deviceId);
+            var entry = GetOrCreateEntry(deviceId);
             if (error == DeviceError.NoAnswer)
             {
                 RecordMiss(deviceId, entry);
@@ -45,30 +42,25 @@ public class DeviceStatuses(TimeProvider time, ILogger<DeviceStatuses> logger)
     {
         lock (_lock)
         {
-            EntryFor(deviceId).Channels = [.. states];
+            var entry = GetOrCreateEntry(deviceId);
+            entry.Channels = [.. states];
         }
     }
 
-    // Ignored until the device's channels have been read once: one known channel alone
-    // would make the others look known too.
     public void StoreChannel(int deviceId, int channel, bool on)
     {
         lock (_lock)
         {
-            var channels = EntryFor(deviceId).Channels;
+            if (!_entries.TryGetValue(deviceId, out var entry))
+            {
+                return;
+            }
+
+            var channels = entry.Channels;
             if (channels is not null && channel >= 1 && channel <= channels.Length)
             {
                 channels[channel - 1] = on;
             }
-        }
-    }
-
-    // After an IP or port change: the old answers say nothing about the new address.
-    public void Reset(int deviceId)
-    {
-        lock (_lock)
-        {
-            _entries.Remove(deviceId);
         }
     }
 
@@ -80,9 +72,9 @@ public class DeviceStatuses(TimeProvider time, ILogger<DeviceStatuses> logger)
         }
     }
 
+
     private void RecordAnswer(int deviceId, Entry entry)
     {
-        // A device that answers for the first time after a start was never "offline" (Q127).
         if (entry.State == State.Offline)
         {
             logger.LogInformation("Device {DeviceId} is back online", deviceId);
@@ -98,13 +90,12 @@ public class DeviceStatuses(TimeProvider time, ILogger<DeviceStatuses> logger)
         entry.Misses++;
         if (entry.Misses >= MissesBeforeOffline && entry.State != State.Offline)
         {
-            // Also for a device never seen since the start, so a dead device is not silent (Q128).
             logger.LogWarning("Device {DeviceId} is offline after {Misses} missed checks", deviceId, entry.Misses);
             entry.State = State.Offline;
         }
     }
 
-    private Entry EntryFor(int deviceId)
+    private Entry GetOrCreateEntry(int deviceId)
     {
         if (!_entries.TryGetValue(deviceId, out var entry))
         {
@@ -115,7 +106,6 @@ public class DeviceStatuses(TimeProvider time, ILogger<DeviceStatuses> logger)
         return entry;
     }
 
-    // Unknown: not answered yet since the start. Offline: missed 3 checks in a row.
     private enum State
     {
         Unknown,

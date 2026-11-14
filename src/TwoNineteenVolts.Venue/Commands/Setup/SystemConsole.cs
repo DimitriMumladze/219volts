@@ -8,7 +8,6 @@ public class SystemConsole : IConsole
 
     public string ReadSecret()
     {
-        // Piped input (a script) has no keys to hide.
         if (Console.IsInputRedirected)
         {
             return ReadLine();

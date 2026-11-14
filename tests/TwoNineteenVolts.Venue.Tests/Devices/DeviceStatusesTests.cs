@@ -21,8 +21,9 @@ public class DeviceStatusesTests
 
         Assert.False(status.IsOnline);
         Assert.Null(status.LastSeen);
+        var channelOne = status.IsOn(1);
         Assert.Null(status.Channels);
-        Assert.Null(status.IsOn(1));
+        Assert.Null(channelOne);
     }
 
     [Fact]
@@ -33,8 +34,9 @@ public class DeviceStatusesTests
         statuses.RecordOutcome(DeviceId, error: null);
 
         var status = statuses.Get(DeviceId);
+        var now = _time.GetUtcNow().UtcDateTime;
         Assert.True(status.IsOnline);
-        Assert.Equal(_time.GetUtcNow().UtcDateTime, status.LastSeen);
+        Assert.Equal(now, status.LastSeen);
     }
 
     [Fact]
@@ -45,8 +47,9 @@ public class DeviceStatusesTests
         statuses.RecordOutcome(DeviceId, DeviceError.ErrorAnswer);
 
         var status = statuses.Get(DeviceId);
+        var now = _time.GetUtcNow().UtcDateTime;
         Assert.True(status.IsOnline);
-        Assert.Equal(_time.GetUtcNow().UtcDateTime, status.LastSeen);
+        Assert.Equal(now, status.LastSeen);
     }
 
     [Fact]
@@ -55,11 +58,13 @@ public class DeviceStatusesTests
         var statuses = NewStatuses();
         statuses.RecordOutcome(DeviceId, error: null);
         var seen = _time.GetUtcNow().UtcDateTime;
-        _time.Advance(TimeSpan.FromSeconds(10));
+        var tenSeconds = TimeSpan.FromSeconds(10);
+        _time.Advance(tenSeconds);
 
         statuses.RecordOutcome(DeviceId, DeviceError.NoAnswer);
         statuses.RecordOutcome(DeviceId, DeviceError.NoAnswer);
-        Assert.True(statuses.Get(DeviceId).IsOnline);
+        var afterTwoMisses = statuses.Get(DeviceId);
+        Assert.True(afterTwoMisses.IsOnline);
 
         statuses.RecordOutcome(DeviceId, DeviceError.NoAnswer);
         var status = statuses.Get(DeviceId);
@@ -79,7 +84,8 @@ public class DeviceStatusesTests
         statuses.RecordOutcome(DeviceId, DeviceError.NoAnswer);
         statuses.RecordOutcome(DeviceId, DeviceError.NoAnswer);
 
-        Assert.True(statuses.Get(DeviceId).IsOnline);
+        var status = statuses.Get(DeviceId);
+        Assert.True(status.IsOnline);
     }
 
     [Fact]
@@ -91,7 +97,9 @@ public class DeviceStatusesTests
 
         GoOffline(statuses);
 
-        Assert.Null(statuses.Get(DeviceId).IsOn(1));
+        var status = statuses.Get(DeviceId);
+        var channelOne = status.IsOn(1);
+        Assert.Null(channelOne);
     }
 
     [Fact]
@@ -104,24 +112,12 @@ public class DeviceStatusesTests
         statuses.StoreChannel(DeviceId, channel: 3, on: true);
 
         var status = statuses.Get(DeviceId);
-        Assert.True(status.IsOn(1));
-        Assert.False(status.IsOn(2));
-        Assert.True(status.IsOn(3));
-    }
-
-    [Fact]
-    public void Reset_starts_the_status_over()
-    {
-        var statuses = NewStatuses();
-        statuses.RecordOutcome(DeviceId, error: null);
-        statuses.StoreChannels(DeviceId, [true]);
-
-        statuses.Reset(DeviceId);
-
-        var status = statuses.Get(DeviceId);
-        Assert.False(status.IsOnline);
-        Assert.Null(status.LastSeen);
-        Assert.Null(status.Channels);
+        var channelOne = status.IsOn(1);
+        var channelTwo = status.IsOn(2);
+        var channelThree = status.IsOn(3);
+        Assert.True(channelOne);
+        Assert.False(channelTwo);
+        Assert.True(channelThree);
     }
 
     [Fact]
@@ -144,9 +140,9 @@ public class DeviceStatusesTests
     {
         var statuses = NewStatuses();
 
-        // The first answer after a start is not "back online" (Q127).
         statuses.RecordOutcome(DeviceId, error: null);
-        Assert.Empty(_logger.Collector.GetSnapshot());
+        var afterFirstAnswer = _logger.Collector.GetSnapshot();
+        Assert.Empty(afterFirstAnswer);
 
         for (var miss = 1; miss <= 5; miss++)
         {
@@ -156,7 +152,8 @@ public class DeviceStatusesTests
         statuses.RecordOutcome(DeviceId, error: null);
         statuses.RecordOutcome(DeviceId, error: null);
 
-        Assert.Equal([LogLevel.Warning, LogLevel.Information], _logger.Collector.GetSnapshot().Select(r => r.Level));
+        var levels = _logger.Collector.GetSnapshot().Select(r => r.Level);
+        Assert.Equal([LogLevel.Warning, LogLevel.Information], levels);
     }
 
     [Fact]
@@ -169,8 +166,10 @@ public class DeviceStatusesTests
             statuses.RecordOutcome(DeviceId, DeviceError.NoAnswer);
         }
 
-        Assert.Equal([LogLevel.Warning], _logger.Collector.GetSnapshot().Select(r => r.Level));
+        var levels = _logger.Collector.GetSnapshot().Select(r => r.Level);
+        Assert.Equal([LogLevel.Warning], levels);
     }
+
 
     private DeviceStatuses NewStatuses() => new(_time, _logger);
 

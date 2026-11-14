@@ -9,7 +9,6 @@ using TwoNineteenVolts.Venue.Domain.Devices;
 
 namespace TwoNineteenVolts.Venue.Application.Devices;
 
-// Support registers, edits and deletes the venue's relay devices.
 public class DeviceService(
     IVenueDbContext db,
     RelayDrivers drivers,
@@ -27,25 +26,26 @@ public class DeviceService(
         var cleanName = name.Trim();
         var cleanPort = port ?? driver.DefaultPort;
 
+        if (!driver.AllowedChannelCounts.Contains(channelCount))
+        {
+            return Fail(DeviceError.InvalidChannelCount);
+        }
+
         var error = await ValidateAsync(cleanName, ipAddress, cleanPort, ignoredDeviceId: null);
         if (error is not null)
         {
             return Fail(error);
         }
 
-        if (!driver.AllowedChannelCounts.Contains(channelCount))
-        {
-            return Fail(DeviceError.InvalidChannelCount);
-        }
+        var now = time.GetUtcNow().UtcDateTime;
+        var device = new Device(cleanName, kind, ipAddress, cleanPort, channelCount, now);
 
-        var device = new Device(cleanName, kind, ipAddress, cleanPort, channelCount, time.GetUtcNow().UtcDateTime);
-
-        // The audit entry targets the new id, which SQLite assigns only on insert,
-        // so the device and its entry are saved in two steps inside one transaction.
         await using var transaction = await db.Database.BeginTransactionAsync();
         db.Devices.Add(device);
         await db.SaveChangesAsync();
-        audit.Record(currentActor.Get(), AuditActions.DeviceRegistered, TargetOf(device));
+        var actor = currentActor.Get();
+        var target = TargetOf(device);
+        audit.Record(actor, AuditActions.DeviceRegistered, target);
         await db.SaveChangesAsync();
         await transaction.CommitAsync();
 
@@ -67,26 +67,28 @@ public class DeviceService(
             return Fail(error);
         }
 
+        var oldPort = device.Port.ToString();
+        var newPort = port.ToString();
         var changes = Changes(
             ("name", device.Name, cleanName),
             ("ip", device.IpAddress, ipAddress),
-            ("port", device.Port.ToString(), port.ToString()));
+            ("port", oldPort, newPort));
         var addressChanged = device.IpAddress != ipAddress || device.Port != port;
 
         device.Update(cleanName, ipAddress, port);
-        audit.Record(currentActor.Get(), AuditActions.DeviceUpdated, TargetOf(device), changes);
+        var actor = currentActor.Get();
+        var target = TargetOf(device);
+        audit.Record(actor, AuditActions.DeviceUpdated, target, changes);
         await db.SaveChangesAsync();
 
-        // The old answers say nothing about the new address.
         if (addressChanged)
         {
-            statuses.Reset(id);
+            statuses.Remove(id);
         }
 
         return Result<Device>.Ok(device);
     }
 
-    // Spots on the device stay, unmapped, until Support maps them again.
     public async Task<Result<Device>> DeleteAsync(int id)
     {
         var device = await db.Devices.SingleOrDefaultAsync(d => d.Id == id);
@@ -104,18 +106,21 @@ public class DeviceService(
             spot.Unmap();
         }
 
-        // Spots first: the database refuses to delete a device that spots still point to.
         await using var transaction = await db.Database.BeginTransactionAsync();
         await db.SaveChangesAsync();
         db.Devices.Remove(device);
-        var unmapped = string.Join(", ", spots.Select(s => $"spot:{s.Id}"));
-        audit.Record(currentActor.Get(), AuditActions.DeviceDeleted, TargetOf(device), $"unmapped spots: {unmapped}");
+        var spotTargets = spots.Select(s => $"spot:{s.Id}");
+        var unmapped = string.Join(", ", spotTargets);
+        var actor = currentActor.Get();
+        var target = TargetOf(device);
+        audit.Record(actor, AuditActions.DeviceDeleted, target, $"unmapped spots: {unmapped}");
         await db.SaveChangesAsync();
         await transaction.CommitAsync();
 
         statuses.Remove(id);
         return Result<Device>.Ok(device);
     }
+
 
     private async Task<string?> ValidateAsync(string name, string ipAddress, int port, int? ignoredDeviceId)
     {
@@ -134,7 +139,6 @@ public class DeviceService(
             return DeviceError.InvalidPort;
         }
 
-        // Name uses the NOCASE collation, so this comparison ignores case.
         if (await db.Devices.AnyAsync(d => d.Name == name && d.Id != ignoredDeviceId))
         {
             return DeviceError.DuplicateName;
@@ -148,19 +152,21 @@ public class DeviceService(
         return null;
     }
 
-    // Only the dotted four-number form: IPAddress.TryParse alone also accepts "192.168.1" and "1".
     private static bool IsIPv4(string ipAddress) =>
         IPAddress.TryParse(ipAddress, out var parsed)
         && parsed.AddressFamily == AddressFamily.InterNetwork
         && parsed.ToString() == ipAddress;
 
-    // "name: Panel 1 → Panel A; ip: 192.168.1.20 → 192.168.1.21", only the fields that changed.
-    private static string Changes(params (string Field, string Old, string New)[] fields) =>
-        string.Join("; ", fields
+    private static string Changes(params (string Field, string Old, string New)[] fields)
+    {
+        var changed = fields
             .Where(f => f.Old != f.New)
-            .Select(f => $"{f.Field}: {f.Old} → {f.New}"));
+            .Select(f => $"{f.Field}: {f.Old} → {f.New}");
 
-    private static string TargetOf(Device device) => $"device:{device.Id}";
+        return string.Join("; ", changed);
+    }
+
+    private static string TargetOf(Device device) => AuditTarget.Device(device.Id);
 
     private static Result<Device> Fail(string error) => Result<Device>.Fail(error);
 }

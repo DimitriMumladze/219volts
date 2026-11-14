@@ -1,7 +1,5 @@
 namespace TwoNineteenVolts.Venue.Domain.Devices;
 
-// A relay device on the venue LAN. Kind and channel count never change; a wrong device is
-// deleted and registered again.
 public class Device(string name, DeviceKind kind, string ipAddress, int port, int channelCount, DateTime createdAt)
 {
     public int Id { get; private set; }

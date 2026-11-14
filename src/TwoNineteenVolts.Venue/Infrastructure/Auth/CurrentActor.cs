@@ -12,8 +12,10 @@ public class CurrentActor(IHttpContextAccessor httpContextAccessor) : ICurrentAc
             return AuditActor.Unknown;
         }
 
-        return new AuditActor(
-            int.Parse(user.FindFirst(AuthClaims.UserId)!.Value),
-            user.FindFirst(AuthClaims.Name)!.Value);
+        var idClaim = user.FindFirst(AuthClaims.UserId)!.Value;
+        var name = user.FindFirst(AuthClaims.Name)!.Value;
+        var id = int.Parse(idClaim);
+
+        return new AuditActor(id, name);
     }
 }

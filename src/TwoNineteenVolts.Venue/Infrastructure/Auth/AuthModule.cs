@@ -17,8 +17,16 @@ public static class AuthModule
             .ValidateDataAnnotations()
             .ValidateOnStart();
 
-        // One store serves both roles: the cookie handler keeps sessions in it, and the
-        // services end or expire sessions through ISessionRegistry.
+        AddSessionCookie(services);
+        AddRolePolicies(services);
+        AddLoginServices(services);
+
+        return services;
+    }
+
+
+    private static void AddSessionCookie(IServiceCollection services)
+    {
         services.AddSingleton<InMemoryTicketStore>();
         services.AddSingleton<ISessionRegistry>(provider => provider.GetRequiredService<InMemoryTicketStore>());
 
@@ -28,11 +36,9 @@ public static class AuthModule
                 options.Cookie.Name = CookieName;
                 options.Cookie.HttpOnly = true;
                 options.Cookie.SameSite = SameSiteMode.Strict;
-                // v1 runs on plain HTTP inside the venue; becomes Always once HTTPS exists.
                 options.Cookie.SecurePolicy = CookieSecurePolicy.None;
                 options.SlidingExpiration = true;
 
-                // An API answers with status codes instead of redirecting to a login page.
                 options.Events.OnRedirectToLogin = context =>
                 {
                     context.Response.StatusCode = StatusCodes.Status401Unauthorized;
@@ -51,18 +57,22 @@ public static class AuthModule
                 options.ExpireTimeSpan = auth.Value.InactivityTimeout;
                 options.SessionStore = store;
             });
+    }
 
+    private static void AddRolePolicies(IServiceCollection services)
+    {
         services.AddAuthorizationBuilder()
             .AddPolicy(Policies.Staff, policy => policy.RequireClaim(AuthClaims.Role, nameof(Role.Staff), nameof(Role.Manager), nameof(Role.Support)))
             .AddPolicy(Policies.Manager, policy => policy.RequireClaim(AuthClaims.Role, nameof(Role.Manager), nameof(Role.Support)))
             .AddPolicy(Policies.Support, policy => policy.RequireClaim(AuthClaims.Role, nameof(Role.Support)));
+    }
 
+    private static void AddLoginServices(IServiceCollection services)
+    {
         services.AddHttpContextAccessor();
         services.AddScoped<ICurrentActor, CurrentActor>();
         services.AddSingleton<IPinHasher, PinHasher>();
         services.AddSingleton<LoginThrottle>();
         services.AddScoped<LoginService>();
-
-        return services;
     }
 }

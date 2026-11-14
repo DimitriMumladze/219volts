@@ -3,7 +3,6 @@ using TwoNineteenVolts.Venue.Infrastructure.Data;
 
 namespace TwoNineteenVolts.Venue.Infrastructure.Audit;
 
-// Deletes audit entries older than the retention period: once at start, then once a day.
 public class AuditCleanupService(
     IServiceScopeFactory scopes,
     TimeProvider time,
@@ -31,7 +30,6 @@ public class AuditCleanupService(
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        // Also runs at start: a venue PC that is switched off every night would never reach a 24-hour tick.
         await RunSafelyAsync();
 
         using var timer = new PeriodicTimer(CleanupInterval, time);
@@ -41,7 +39,7 @@ public class AuditCleanupService(
         }
     }
 
-    // An exception escaping a background service stops the whole app; one failed run must not.
+
     private async Task RunSafelyAsync()
     {
         try

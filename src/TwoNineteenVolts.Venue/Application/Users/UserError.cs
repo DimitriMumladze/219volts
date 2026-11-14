@@ -1,6 +1,5 @@
 namespace TwoNineteenVolts.Venue.Application.Users;
 
-// Expected failures of user management, as keys into Resources/Messages.resx.
 public static class UserError
 {
     public const string NotFound = "UserNotFound";

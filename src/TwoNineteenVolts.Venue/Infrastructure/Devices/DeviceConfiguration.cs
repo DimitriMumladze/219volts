@@ -6,7 +6,6 @@ namespace TwoNineteenVolts.Venue.Infrastructure.Devices;
 
 public class DeviceConfiguration : IEntityTypeConfiguration<Device>
 {
-    // SQLite's built-in case-insensitive collation, so "Panel 1" and "PANEL 1" are the same name.
     private const string CaseInsensitiveCollation = "NOCASE";
 
     public void Configure(EntityTypeBuilder<Device> builder)

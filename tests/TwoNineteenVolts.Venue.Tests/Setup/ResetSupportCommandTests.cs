@@ -21,15 +21,16 @@ public class ResetSupportCommandTests
 
         var exitCode = await RunAsync(factory, console, isAdministrator: false);
 
+        var oldPasswordWorks = await VerifyAsync(factory, support, OldPassword);
+        var auditCount = await AuditCountAsync(factory);
         Assert.Equal(1, exitCode);
-        Assert.True(await VerifyAsync(factory, support, OldPassword));
-        Assert.Equal(0, await AuditCountAsync(factory));
+        Assert.True(oldPasswordWorks);
+        Assert.Equal(0, auditCount);
     }
 
     [Fact]
     public async Task Reset_support_without_admin_does_not_touch_the_database()
     {
-        // Only the texts are registered: any attempt to migrate or open the database throws.
         using var nothing = new ServiceCollection().AddLogging().AddLocalization().BuildServiceProvider();
         var console = new FakeConsole();
 
@@ -49,9 +50,11 @@ public class ResetSupportCommandTests
         var exitCode = await RunAsync(factory, console, isAdministrator: true);
 
         Assert.Equal(0, exitCode);
-        Assert.False(await VerifyAsync(factory, support, OldPassword));
+        var oldPasswordWorks = await VerifyAsync(factory, support, OldPassword);
+        Assert.False(oldPasswordWorks);
         var newPassword = Assert.Single(console.Output, line => line.Length == 24);
-        Assert.True(await VerifyAsync(factory, support, newPassword));
+        var newPasswordWorks = await VerifyAsync(factory, support, newPassword);
+        Assert.True(newPasswordWorks);
         Assert.Contains(console.Output, line => line.Contains("restart the 219volts service", StringComparison.OrdinalIgnoreCase));
 
         using var scope = factory.Services.CreateScope();
@@ -67,9 +70,11 @@ public class ResetSupportCommandTests
 
         var exitCode = await RunAsync(factory, new FakeConsole(), isAdministrator: true);
 
+        var auditCount = await AuditCountAsync(factory);
         Assert.Equal(1, exitCode);
-        Assert.Equal(0, await AuditCountAsync(factory));
+        Assert.Equal(0, auditCount);
     }
+
 
     private static Task<int> RunAsync(VenueAppFactory factory, FakeConsole console, bool isAdministrator) =>
         new ResetSupportCommand(factory.Services, console, () => isAdministrator).RunAsync();

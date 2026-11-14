@@ -26,7 +26,8 @@ public class SetupCommandTests
 
         var owner = users[0];
         Assert.Equal(("Nino", Role.Manager, true), (owner.DisplayName, owner.Role, owner.IsActive));
-        Assert.True(hasher.Verify(owner.SecretHash, "0123"));
+        var ownerPinWorks = hasher.Verify(owner.SecretHash, "0123");
+        Assert.True(ownerPinWorks);
 
         var support = users[1];
         Assert.Equal(("219volts Support", Role.Support), (support.DisplayName, support.Role));
@@ -34,7 +35,8 @@ public class SetupCommandTests
         Assert.Single(console.Output, line => line.Contains(printed));
 
         var entries = await db.AuditEntries.OrderBy(e => e.Id).ToListAsync();
-        Assert.Equal([$"user:{owner.Id}", $"user:{support.Id}"], entries.Select(e => e.Target));
+        var targets = entries.Select(e => e.Target);
+        Assert.Equal([$"user:{owner.Id}", $"user:{support.Id}"], targets);
         Assert.All(entries, e => Assert.Equal((AuditActions.UserCreated, (int?)null, "setup"), (e.Action, e.ActorUserId, e.ActorName)));
     }
 
@@ -65,6 +67,7 @@ public class SetupCommandTests
         await AssertNothingChangedAsync(factory, expectedUsers: 0);
     }
 
+
     private static Task<int> RunAsync(VenueAppFactory factory, FakeConsole console) =>
         new SetupCommand(factory.Services, console).RunAsync();
 
@@ -72,7 +75,9 @@ public class SetupCommandTests
     {
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<VenueDbContext>();
-        Assert.Equal(expectedUsers, await db.Users.CountAsync());
-        Assert.Equal(0, await db.AuditEntries.CountAsync());
+        var userCount = await db.Users.CountAsync();
+        var auditCount = await db.AuditEntries.CountAsync();
+        Assert.Equal(expectedUsers, userCount);
+        Assert.Equal(0, auditCount);
     }
 }

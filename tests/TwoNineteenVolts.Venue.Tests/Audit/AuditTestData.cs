@@ -4,7 +4,6 @@ using TwoNineteenVolts.Venue.Infrastructure.Data;
 
 namespace TwoNineteenVolts.Venue.Tests.Audit;
 
-// Writes audit entries with chosen times straight into the database.
 public static class AuditTestData
 {
     public static AuditEntry Entry(DateTime occurredAt, int? actorUserId, string action, string details) =>

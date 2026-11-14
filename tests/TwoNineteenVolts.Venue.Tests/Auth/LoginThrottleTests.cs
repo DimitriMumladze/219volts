@@ -16,7 +16,8 @@ public class LoginThrottleTests
 
         for (var attempt = 1; attempt <= 4; attempt++)
         {
-            Assert.Null(throttle.TryStartAttempt(UserId));
+            var wait = throttle.TryStartAttempt(UserId);
+            Assert.Null(wait);
         }
     }
 
@@ -29,10 +30,12 @@ public class LoginThrottleTests
         foreach (var seconds in new[] { 1, 2, 4, 8, 16, 30, 30 })
         {
             var wait = TimeSpan.FromSeconds(seconds);
-            Assert.Equal(wait, throttle.TryStartAttempt(UserId));
+            var tooEarly = throttle.TryStartAttempt(UserId);
+            Assert.Equal(wait, tooEarly);
 
             _time.Advance(wait);
-            Assert.Null(throttle.TryStartAttempt(UserId));
+            var onTime = throttle.TryStartAttempt(UserId);
+            Assert.Null(onTime);
         }
     }
 
@@ -42,11 +45,16 @@ public class LoginThrottleTests
         var throttle = new LoginThrottle(_time);
         StartAttempts(throttle, 4);
 
-        _time.Advance(TimeSpan.FromMilliseconds(400));
-        Assert.Equal(TimeSpan.FromMilliseconds(600), throttle.TryStartAttempt(UserId));
+        var fourHundredMilliseconds = TimeSpan.FromMilliseconds(400);
+        var sixHundredMilliseconds = TimeSpan.FromMilliseconds(600);
 
-        _time.Advance(TimeSpan.FromMilliseconds(600));
-        Assert.Null(throttle.TryStartAttempt(UserId));
+        _time.Advance(fourHundredMilliseconds);
+        var remaining = throttle.TryStartAttempt(UserId);
+        Assert.Equal(sixHundredMilliseconds, remaining);
+
+        _time.Advance(sixHundredMilliseconds);
+        var afterWaiting = throttle.TryStartAttempt(UserId);
+        Assert.Null(afterWaiting);
     }
 
     [Fact]
@@ -55,11 +63,15 @@ public class LoginThrottleTests
         var throttle = new LoginThrottle(_time);
         StartAttempts(throttle, 4);
 
-        _time.Advance(TimeSpan.FromMilliseconds(500));
-        Assert.NotNull(throttle.TryStartAttempt(UserId));
+        var halfSecond = TimeSpan.FromMilliseconds(500);
 
-        _time.Advance(TimeSpan.FromMilliseconds(500));
-        Assert.Null(throttle.TryStartAttempt(UserId));
+        _time.Advance(halfSecond);
+        var early = throttle.TryStartAttempt(UserId);
+        Assert.NotNull(early);
+
+        _time.Advance(halfSecond);
+        var onTime = throttle.TryStartAttempt(UserId);
+        Assert.Null(onTime);
     }
 
     [Fact]
@@ -72,7 +84,8 @@ public class LoginThrottleTests
 
         for (var attempt = 1; attempt <= 4; attempt++)
         {
-            Assert.Null(throttle.TryStartAttempt(UserId));
+            var wait = throttle.TryStartAttempt(UserId);
+            Assert.Null(wait);
         }
     }
 
@@ -82,8 +95,10 @@ public class LoginThrottleTests
         var throttle = new LoginThrottle(_time);
         StartAttempts(throttle, 4);
 
-        Assert.NotNull(throttle.TryStartAttempt(UserId));
-        Assert.Null(throttle.TryStartAttempt(UserId + 1));
+        var slowedUser = throttle.TryStartAttempt(UserId);
+        var otherUser = throttle.TryStartAttempt(UserId + 1);
+        Assert.NotNull(slowedUser);
+        Assert.Null(otherUser);
     }
 
     [Fact]
@@ -100,15 +115,19 @@ public class LoginThrottleTests
             }
         });
 
+        var oneSecond = TimeSpan.FromSeconds(1);
+        var nextWait = throttle.TryStartAttempt(UserId);
         Assert.Equal(4, allowed);
-        Assert.Equal(TimeSpan.FromSeconds(1), throttle.TryStartAttempt(UserId));
+        Assert.Equal(oneSecond, nextWait);
     }
+
 
     private static void StartAttempts(LoginThrottle throttle, int count)
     {
         for (var attempt = 1; attempt <= count; attempt++)
         {
-            Assert.Null(throttle.TryStartAttempt(UserId));
+            var wait = throttle.TryStartAttempt(UserId);
+            Assert.Null(wait);
         }
     }
 }

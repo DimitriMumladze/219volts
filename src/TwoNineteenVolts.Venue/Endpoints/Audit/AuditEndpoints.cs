@@ -13,6 +13,7 @@ public static class AuditEndpoints
         group.MapGet("/", GetEntriesAsync);
     }
 
+
     private static async Task<IResult> GetEntriesAsync(
         AuditReader reader,
         DateTime? from,
@@ -22,15 +23,12 @@ public static class AuditEndpoints
         int page = 1,
         int pageSize = 50)
     {
-        // Minimal APIs already read query times as UTC ("Z", "+04:00" and no offset alike);
-        // Audit_endpoint_filters_by_user_action_and_dates guards that.
         var result = await reader.ReadAsync(new AuditQuery(from, to, userId, action, page, pageSize));
 
-        return TypedResults.Ok(new AuditPageResponse(
-            result.Items.Select(ToResponse).ToList(),
-            result.Page,
-            result.PageSize,
-            result.TotalCount));
+        var items = result.Items.Select(ToResponse).ToList();
+        var response = new AuditPageResponse(items, result.Page, result.PageSize, result.TotalCount);
+
+        return TypedResults.Ok(response);
     }
 
     private static AuditEntryResponse ToResponse(AuditEntry entry) =>

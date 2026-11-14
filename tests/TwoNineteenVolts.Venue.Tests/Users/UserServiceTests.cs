@@ -39,7 +39,9 @@ public class UserServiceTests
         Assert.Equal("Gio", gio.DisplayName);
         Assert.Equal(Role.Staff, gio.Role);
         Assert.True(gio.IsActive);
-        Assert.True(factory.Services.GetRequiredService<IPinHasher>().Verify(gio.SecretHash, "0123"));
+        var hasher = factory.Services.GetRequiredService<IPinHasher>();
+        var pinWorks = hasher.Verify(gio.SecretHash, "0123");
+        Assert.True(pinWorks);
     }
 
     [Fact]
@@ -47,8 +49,11 @@ public class UserServiceTests
     {
         using var factory = new VenueAppFactory();
 
-        Assert.Equal(UserError.InvalidName, (await UseServiceAsync(factory, users => users.CreateAsync("   ", "0123"))).Error);
-        Assert.Equal(UserError.InvalidPin, (await UseServiceAsync(factory, users => users.CreateAsync("Gio", "123"))).Error);
+        var emptyName = await UseServiceAsync(factory, users => users.CreateAsync("   ", "0123"));
+        var shortPin = await UseServiceAsync(factory, users => users.CreateAsync("Gio", "123"));
+
+        Assert.Equal(UserError.InvalidName, emptyName.Error);
+        Assert.Equal(UserError.InvalidPin, shortPin.Error);
     }
 
     [Fact]
@@ -61,7 +66,8 @@ public class UserServiceTests
         var result = await UseServiceAsync(factory, users => users.RenameAsync(gio, " nINo "));
 
         Assert.Equal(UserError.DuplicateName, result.Error);
-        Assert.Equal("Gio", (await FindAsync(factory, gio)).DisplayName);
+        var stored = await FindAsync(factory, gio);
+        Assert.Equal("Gio", stored.DisplayName);
     }
 
     [Fact]
@@ -73,7 +79,8 @@ public class UserServiceTests
         var result = await UseServiceAsync(factory, users => users.RenameAsync(gio, "Gio"));
 
         Assert.False(result.IsFailure);
-        Assert.Equal("Gio", (await FindAsync(factory, gio)).DisplayName);
+        var stored = await FindAsync(factory, gio);
+        Assert.Equal("Gio", stored.DisplayName);
     }
 
     [Fact]
@@ -94,11 +101,17 @@ public class UserServiceTests
         using var factory = new VenueAppFactory();
         var support = await TestUsers.AddAsync(factory, "219volts Support", Role.Support, "support-password");
 
-        Assert.Equal(UserError.NotFound, (await UseServiceAsync(factory, users => users.RenameAsync(support, "Eve"))).Error);
-        Assert.Equal(UserError.NotFound, (await UseServiceAsync(factory, users => users.SetPinAsync(support, "1234"))).Error);
-        Assert.Equal(UserError.NotFound, (await UseServiceAsync(factory, users => users.DeactivateAsync(support))).Error);
-        Assert.Equal(UserError.NotFound, (await UseServiceAsync(factory, users => users.ReactivateAsync(support))).Error);
-        Assert.Equal(UserError.NotFound, (await UseServiceAsync(factory, users => users.RenameAsync(999, "Eve"))).Error);
+        var rename = await UseServiceAsync(factory, users => users.RenameAsync(support, "Eve"));
+        var setPin = await UseServiceAsync(factory, users => users.SetPinAsync(support, "1234"));
+        var deactivate = await UseServiceAsync(factory, users => users.DeactivateAsync(support));
+        var reactivate = await UseServiceAsync(factory, users => users.ReactivateAsync(support));
+        var unknown = await UseServiceAsync(factory, users => users.RenameAsync(999, "Eve"));
+
+        Assert.Equal(UserError.NotFound, rename.Error);
+        Assert.Equal(UserError.NotFound, setPin.Error);
+        Assert.Equal(UserError.NotFound, deactivate.Error);
+        Assert.Equal(UserError.NotFound, reactivate.Error);
+        Assert.Equal(UserError.NotFound, unknown.Error);
     }
 
     [Fact]
@@ -110,7 +123,8 @@ public class UserServiceTests
         var result = await UseServiceAsync(factory, users => users.DeactivateAsync(nino));
 
         Assert.Equal(UserError.ManagerCannotBeDeactivated, result.Error);
-        Assert.True((await FindAsync(factory, nino)).IsActive);
+        var stored = await FindAsync(factory, nino);
+        Assert.True(stored.IsActive);
     }
 
     [Fact]
@@ -119,11 +133,14 @@ public class UserServiceTests
         using var factory = new VenueAppFactory();
         var gio = await TestUsers.AddAsync(factory, "Gio", Role.Staff, "5678");
         var store = factory.Services.GetRequiredService<InMemoryTicketStore>();
-        var session = await store.StoreAsync(TicketFor(gio, "Gio"));
+        var ticket = TicketFor(gio, "Gio");
+        var session = await store.StoreAsync(ticket);
 
         await UseServiceAsync(factory, users => users.DeactivateAsync(gio));
 
-        Assert.Null(await store.RetrieveAsync(session));
+        var stored = await store.RetrieveAsync(session);
+
+        Assert.Null(stored);
     }
 
     [Fact]
@@ -132,11 +149,14 @@ public class UserServiceTests
         using var factory = new VenueAppFactory();
         var gio = await TestUsers.AddAsync(factory, "Gio", Role.Staff, "5678");
         var store = factory.Services.GetRequiredService<InMemoryTicketStore>();
-        var session = await store.StoreAsync(TicketFor(gio, "Gio"));
+        var ticket = TicketFor(gio, "Gio");
+        var session = await store.StoreAsync(ticket);
 
         await UseServiceAsync(factory, users => users.RenameAsync(gio, "Giorgi"));
 
-        Assert.Null(await store.RetrieveAsync(session));
+        var stored = await store.RetrieveAsync(session);
+
+        Assert.Null(stored);
     }
 
     [Fact]
@@ -145,11 +165,14 @@ public class UserServiceTests
         using var factory = new VenueAppFactory();
         var gio = await TestUsers.AddAsync(factory, "Gio", Role.Staff, "5678");
         var store = factory.Services.GetRequiredService<InMemoryTicketStore>();
-        var session = await store.StoreAsync(TicketFor(gio, "Gio"));
+        var ticket = TicketFor(gio, "Gio");
+        var session = await store.StoreAsync(ticket);
 
         await UseServiceAsync(factory, users => users.SetPinAsync(gio, "0000"));
 
-        Assert.Null(await store.RetrieveAsync(session));
+        var stored = await store.RetrieveAsync(session);
+
+        Assert.Null(stored);
     }
 
     [Fact]
@@ -159,11 +182,14 @@ public class UserServiceTests
         await TestUsers.AddAsync(factory, "Nino", Role.Manager, "1234");
         var gio = await TestUsers.AddAsync(factory, "Gio", Role.Staff, "5678");
         var store = factory.Services.GetRequiredService<InMemoryTicketStore>();
-        var session = await store.StoreAsync(TicketFor(gio, "Gio"));
+        var ticket = TicketFor(gio, "Gio");
+        var session = await store.StoreAsync(ticket);
 
         await UseServiceAsync(factory, users => users.RenameAsync(gio, "nino"));
 
-        Assert.NotNull(await store.RetrieveAsync(session));
+        var stored = await store.RetrieveAsync(session);
+
+        Assert.NotNull(stored);
     }
 
     [Fact]
@@ -172,7 +198,8 @@ public class UserServiceTests
         using var factory = new VenueAppFactory();
         await TestUsers.AddAsync(factory, "Nino", Role.Manager, "1234");
 
-        var gio = (await UseServiceAsync(factory, users => users.CreateAsync("Gio", "5678"))).Value!.Id;
+        var created = await UseServiceAsync(factory, users => users.CreateAsync("Gio", "5678"));
+        var gio = created.Value!.Id;
         await UseServiceAsync(factory, users => users.RenameAsync(gio, "Giorgi"));
         await UseServiceAsync(factory, users => users.SetPinAsync(gio, "0000"));
         await UseServiceAsync(factory, users => users.DeactivateAsync(gio));
@@ -181,6 +208,7 @@ public class UserServiceTests
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<VenueDbContext>();
         var entries = await db.AuditEntries.OrderBy(e => e.Id).ToListAsync();
+        var actionsAndDetails = entries.Select(e => (e.Action, e.Details));
 
         Assert.Equal(
             [
@@ -190,7 +218,7 @@ public class UserServiceTests
                 (AuditActions.UserDeactivated, null),
                 (AuditActions.UserReactivated, null)
             ],
-            entries.Select(e => (e.Action, e.Details)));
+            actionsAndDetails);
         Assert.All(entries, e => Assert.Equal($"user:{gio}", e.Target));
     }
 
@@ -205,13 +233,16 @@ public class UserServiceTests
 
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<VenueDbContext>();
-        Assert.Equal(0, await db.AuditEntries.CountAsync());
+        var count = await db.AuditEntries.CountAsync();
+        Assert.Equal(0, count);
     }
+
 
     private static async Task<Result<User>> UseServiceAsync(VenueAppFactory factory, Func<UserService, Task<Result<User>>> action)
     {
         using var scope = factory.Services.CreateScope();
-        return await action(scope.ServiceProvider.GetRequiredService<UserService>());
+        var service = scope.ServiceProvider.GetRequiredService<UserService>();
+        return await action(service);
     }
 
     private static async Task<User> FindAsync(VenueAppFactory factory, int id)
@@ -223,13 +254,15 @@ public class UserServiceTests
 
     private static AuthenticationTicket TicketFor(int userId, string name)
     {
+        var id = userId.ToString();
         var identity = new ClaimsIdentity(
             [
-                new Claim(AuthClaims.UserId, userId.ToString()),
+                new Claim(AuthClaims.UserId, id),
                 new Claim(AuthClaims.Name, name)
             ],
             "test");
 
-        return new AuthenticationTicket(new ClaimsPrincipal(identity), "test");
+        var principal = new ClaimsPrincipal(identity);
+        return new AuthenticationTicket(principal, "test");
     }
 }

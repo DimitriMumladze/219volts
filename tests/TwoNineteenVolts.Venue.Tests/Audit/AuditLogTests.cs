@@ -21,7 +21,8 @@ public class AuditLogTests
             var db = scope.ServiceProvider.GetRequiredService<VenueDbContext>();
             var audit = scope.ServiceProvider.GetRequiredService<IAuditLog>();
 
-            db.Users.Add(new User("Gio", Role.Staff, "hash", factory.Time.GetUtcNow().UtcDateTime));
+            var now = factory.Time.GetUtcNow().UtcDateTime;
+            db.Users.Add(new User("Gio", Role.Staff, "hash", now));
             audit.Record(Manager, AuditActions.UserCreated, "user:2", "Staff");
             await db.SaveChangesAsync();
         }
@@ -30,10 +31,12 @@ public class AuditLogTests
         {
             var db = scope.ServiceProvider.GetRequiredService<VenueDbContext>();
 
-            Assert.Equal("Gio", (await db.Users.SingleAsync()).DisplayName);
+            var user = await db.Users.SingleAsync();
+            Assert.Equal("Gio", user.DisplayName);
 
             var entry = await db.AuditEntries.SingleAsync();
-            Assert.Equal(factory.Time.GetUtcNow().UtcDateTime, entry.OccurredAt);
+            var now = factory.Time.GetUtcNow().UtcDateTime;
+            Assert.Equal(now, entry.OccurredAt);
             Assert.Equal(1, entry.ActorUserId);
             Assert.Equal("Nino", entry.ActorName);
             Assert.Equal(AuditActions.UserCreated, entry.Action);
@@ -57,7 +60,8 @@ public class AuditLogTests
         {
             var db = scope.ServiceProvider.GetRequiredService<VenueDbContext>();
 
-            Assert.Equal(0, await db.AuditEntries.CountAsync());
+            var count = await db.AuditEntries.CountAsync();
+            Assert.Equal(0, count);
         }
     }
 

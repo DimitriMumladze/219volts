@@ -7,7 +7,6 @@ public class AuditReader(IVenueDbContext db)
 {
     private const int MaxPageSize = 200;
 
-    // Newest first. From and To are both inclusive; all times are UTC.
     public async Task<AuditPage> ReadAsync(AuditQuery query)
     {
         var page = Math.Max(query.Page, 1);

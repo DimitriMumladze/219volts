@@ -21,6 +21,7 @@ public static class UserEndpoints
         group.MapPost("/{id:int}/reactivate", ReactivateAsync);
     }
 
+
     private static async Task<IResult> GetUsersAsync(IVenueDbContext db)
     {
         var users = await db.Users
@@ -28,7 +29,8 @@ public static class UserEndpoints
             .OrderBy(u => u.DisplayName)
             .ToListAsync();
 
-        return TypedResults.Ok(users.Select(ToResponse));
+        var responses = users.Select(ToResponse).ToList();
+        return TypedResults.Ok(responses);
     }
 
     private static async Task<IResult> CreateAsync(CreateUserRequest request, UserService users)
@@ -36,27 +38,48 @@ public static class UserEndpoints
         var result = await users.CreateAsync(request.DisplayName, request.Pin);
         if (result.IsFailure)
         {
-            return ToProblem(result.Error!);
+            return ToProblem(result.Error);
         }
 
-        var user = result.Value!;
-        return TypedResults.Created($"/api/users/{user.Id}", ToResponse(user));
+        var user = result.Value;
+        var response = ToResponse(user);
+        return TypedResults.Created($"/api/users/{user.Id}", response);
     }
 
-    private static async Task<IResult> RenameAsync(int id, RenameUserRequest request, UserService users) =>
-        ToResult(await users.RenameAsync(id, request.DisplayName));
+    private static async Task<IResult> RenameAsync(int id, RenameUserRequest request, UserService users)
+    {
+        var result = await users.RenameAsync(id, request.DisplayName);
+        return ToResult(result);
+    }
 
-    private static async Task<IResult> SetPinAsync(int id, SetPinRequest request, UserService users) =>
-        ToResult(await users.SetPinAsync(id, request.Pin));
+    private static async Task<IResult> SetPinAsync(int id, SetPinRequest request, UserService users)
+    {
+        var result = await users.SetPinAsync(id, request.Pin);
+        return ToResult(result);
+    }
 
-    private static async Task<IResult> DeactivateAsync(int id, UserService users) =>
-        ToResult(await users.DeactivateAsync(id));
+    private static async Task<IResult> DeactivateAsync(int id, UserService users)
+    {
+        var result = await users.DeactivateAsync(id);
+        return ToResult(result);
+    }
 
-    private static async Task<IResult> ReactivateAsync(int id, UserService users) =>
-        ToResult(await users.ReactivateAsync(id));
+    private static async Task<IResult> ReactivateAsync(int id, UserService users)
+    {
+        var result = await users.ReactivateAsync(id);
+        return ToResult(result);
+    }
 
-    private static IResult ToResult(Result<User> result) =>
-        result.IsFailure ? ToProblem(result.Error!) : TypedResults.Ok(ToResponse(result.Value!));
+    private static IResult ToResult(Result<User> result)
+    {
+        if (result.IsFailure)
+        {
+            return ToProblem(result.Error);
+        }
+
+        var response = ToResponse(result.Value);
+        return TypedResults.Ok(response);
+    }
 
     private static IResult ToProblem(string error)
     {

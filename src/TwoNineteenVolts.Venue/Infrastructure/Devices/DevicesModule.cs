@@ -9,10 +9,12 @@ public static class DevicesModule
         services.AddOptions<DevicesOptions>()
             .BindConfiguration(DevicesOptions.SectionName);
 
-        // One status store for the whole app: the check and the switches share it.
         services.AddSingleton<DeviceStatuses>();
         services.AddScoped<RelayDrivers>();
         services.AddScoped<DeviceService>();
+        services.AddHttpClient<ShellyRelayDriver>();
+        services.AddTransient<IRelayDriver>(provider => provider.GetRequiredService<ShellyRelayDriver>());
+        services.AddSingleton<IRelayDriver, ModbusRelayDriver>();
         services.AddHostedService<DeviceCheckService>();
 
         return services;

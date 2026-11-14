@@ -7,7 +7,6 @@ using TwoNineteenVolts.Venue.Infrastructure.Auth;
 
 namespace TwoNineteenVolts.Venue.Endpoints.Devices;
 
-// Managers see the devices and their status; only Support sets them up.
 public static class DeviceEndpoints
 {
     public static void MapDeviceEndpoints(this IEndpointRouteBuilder app)
@@ -20,13 +19,15 @@ public static class DeviceEndpoints
         group.MapDelete("/{id:int}", DeleteAsync).RequireAuthorization(Policies.Support);
     }
 
+
     private static async Task<IResult> GetDevicesAsync(IVenueDbContext db, DeviceStatuses statuses)
     {
         var devices = await db.Devices
             .OrderBy(d => d.Name)
             .ToListAsync();
 
-        return TypedResults.Ok(devices.Select(d => ToResponse(d, statuses)));
+        var responses = devices.Select(d => ToResponse(d, statuses)).ToList();
+        return TypedResults.Ok(responses);
     }
 
     private static async Task<IResult> RegisterAsync(RegisterDeviceRequest request, DeviceService devices, DeviceStatuses statuses)
@@ -34,24 +35,41 @@ public static class DeviceEndpoints
         var result = await devices.RegisterAsync(request.Name, request.Kind, request.IpAddress, request.Port, request.ChannelCount);
         if (result.IsFailure)
         {
-            return ToProblem(result.Error!);
+            return ToProblem(result.Error);
         }
 
-        var device = result.Value!;
-        return TypedResults.Created($"/api/devices/{device.Id}", ToResponse(device, statuses));
+        var device = result.Value;
+        var response = ToResponse(device, statuses);
+        return TypedResults.Created($"/api/devices/{device.Id}", response);
     }
 
-    private static async Task<IResult> UpdateAsync(int id, UpdateDeviceRequest request, DeviceService devices, DeviceStatuses statuses) =>
-        ToResult(await devices.UpdateAsync(id, request.Name, request.IpAddress, request.Port), statuses);
+    private static async Task<IResult> UpdateAsync(int id, UpdateDeviceRequest request, DeviceService devices, DeviceStatuses statuses)
+    {
+        var result = await devices.UpdateAsync(id, request.Name, request.IpAddress, request.Port);
+        return ToResult(result, statuses);
+    }
 
     private static async Task<IResult> DeleteAsync(int id, DeviceService devices)
     {
         var result = await devices.DeleteAsync(id);
-        return result.IsFailure ? ToProblem(result.Error!) : TypedResults.NoContent();
+        if (result.IsFailure)
+        {
+            return ToProblem(result.Error);
+        }
+
+        return TypedResults.NoContent();
     }
 
-    private static IResult ToResult(Result<Device> result, DeviceStatuses statuses) =>
-        result.IsFailure ? ToProblem(result.Error!) : TypedResults.Ok(ToResponse(result.Value!, statuses));
+    private static IResult ToResult(Result<Device> result, DeviceStatuses statuses)
+    {
+        if (result.IsFailure)
+        {
+            return ToProblem(result.Error);
+        }
+
+        var response = ToResponse(result.Value, statuses);
+        return TypedResults.Ok(response);
+    }
 
     private static IResult ToProblem(string error)
     {

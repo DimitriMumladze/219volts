@@ -6,10 +6,6 @@ using TwoNineteenVolts.Venue.Application.Auth;
 
 namespace TwoNineteenVolts.Venue.Infrastructure.Auth;
 
-// Keeps the identity of each signed-in session in memory; the cookie holds only the random key.
-// A restart therefore signs everybody out, which the spec accepts.
-// The cookie handler enforces the inactivity timeout itself and removes an expired session here
-// when its cookie comes back.
 public class InMemoryTicketStore : ITicketStore, ISessionRegistry
 {
     private const int KeySizeBytes = 32;
@@ -18,16 +14,14 @@ public class InMemoryTicketStore : ITicketStore, ISessionRegistry
 
     public Task<string> StoreAsync(AuthenticationTicket ticket)
     {
-        var key = Convert.ToHexString(RandomNumberGenerator.GetBytes(KeySizeBytes));
+        var keyBytes = RandomNumberGenerator.GetBytes(KeySizeBytes);
+        var key = Convert.ToHexString(keyBytes);
         _sessions[key] = ticket;
         return Task.FromResult(key);
     }
 
     public Task RenewAsync(string key, AuthenticationTicket ticket)
     {
-        // Only renew a session that still exists; an ended session must not come back.
-        // TryUpdate writes only if the entry is still the one we read, so a session removed
-        // in the meantime (logout, EndSessionsFor) stays removed.
         if (_sessions.TryGetValue(key, out var current))
         {
             _sessions.TryUpdate(key, ticket, current);
@@ -59,6 +53,10 @@ public class InMemoryTicketStore : ITicketStore, ISessionRegistry
         }
     }
 
-    private static int UserIdOf(AuthenticationTicket ticket) =>
-        int.Parse(ticket.Principal.FindFirst(AuthClaims.UserId)!.Value);
+
+    private static int UserIdOf(AuthenticationTicket ticket)
+    {
+        var idClaim = ticket.Principal.FindFirst(AuthClaims.UserId)!.Value;
+        return int.Parse(idClaim);
+    }
 }

@@ -8,12 +8,10 @@ using TwoNineteenVolts.Venue.Domain.Users;
 
 namespace TwoNineteenVolts.Venue.Application.Setup;
 
-// Replaces a lost Support password.
 public class ResetSupportService(IVenueDbContext db, IPinHasher hasher, IAuditLog audit)
 {
     private static readonly AuditActor Actor = new(null, "reset-support");
 
-    // On success the value is the new Support password, to be shown exactly once.
     public async Task<Result<string>> ResetAsync()
     {
         var support = await db.Users.SingleOrDefaultAsync(u => u.Role == Role.Support);
@@ -23,8 +21,10 @@ public class ResetSupportService(IVenueDbContext db, IPinHasher hasher, IAuditLo
         }
 
         var password = SecretGenerator.NewSupportPassword();
-        support.SetSecret(hasher.Hash(password));
-        audit.Record(Actor, AuditActions.SupportPasswordReset, $"user:{support.Id}");
+        var passwordHash = hasher.Hash(password);
+        support.SetSecret(passwordHash);
+        var target = AuditTarget.User(support.Id);
+        audit.Record(Actor, AuditActions.SupportPasswordReset, target);
         await db.SaveChangesAsync();
 
         return Result<string>.Ok(password);

@@ -12,7 +12,7 @@ These rules apply to all code in this repository. If a request conflicts with a 
 
 ### 1.2 Readability over cleverness
 - Write code a new developer understands on first read.
-- Use clear names instead of explanatory comments. Comments explain *why*, not *what*.
+- No comments in code. Clear names carry the meaning. (Generated files such as EF migrations stay as the tool wrote them; the `// File.cs` labels in this document's examples only say where a snippet lives.)
 - Prefer plain, explicit code over clever one-liners, deep nesting or heavy generics.
 - A function does one thing and stays short.
 
@@ -130,6 +130,34 @@ if (result.RetryAfter is TimeSpan wait)
 {
     ...
 }
+```
+
+### 2.9 No calls inside calls
+Understandability beats shortness. A call's arguments are variables, constants, literals, properties, lambdas, or `new X(...)` with simple arguments. The result of another method call (or an `await`) goes into a named variable first, small ones like `.ToString()` included. A ternary that calls methods becomes an `if`/`else`. Fluent chains (`.Where(...).OrderBy(...)`) and a single call in an `if` condition are fine.
+
+```csharp
+// Do
+var responses = devices.Select(d => ToResponse(d, statuses)).ToList();
+return TypedResults.Ok(responses);
+
+// Don't
+return TypedResults.Ok(devices.Select(d => ToResponse(d, statuses)));
+```
+
+### 2.10 Public first, then private
+In a class, public members come first and private methods after them. One extra blank line (two in total) marks where the private methods start.
+
+```csharp
+    public async Task<Result<Device>> DeleteAsync(int id)
+    {
+        ...
+    }
+
+
+    private async Task<string?> ValidateAsync(string name, string ipAddress, int port, int? ignoredDeviceId)
+    {
+        ...
+    }
 ```
 
 ## 3. Project Layout
