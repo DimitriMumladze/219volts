@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype">
+    <value>text/microsoft-resx</value>
+  </resheader>
+  <resheader name="version">
+    <value>2.0</value>
+  </resheader>
+  <resheader name="reader">
+    <value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+  <resheader name="writer">
+    <value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value>
+  </resheader>
+
+  <!-- Users -->
+  <data name="UserNotFound" xml:space="preserve">
+    <value>User not found</value>
+  </data>
+  <data name="UserDuplicateName" xml:space="preserve">
+    <value>Another user already has this name</value>
+  </data>
+  <data name="UserManagerCannotBeDeactivated" xml:space="preserve">
+    <value>The manager cannot be deactivated</value>
+  </data>
+  <data name="UserInvalidPin" xml:space="preserve">
+    <value>PIN must be exactly 4 digits</value>
+  </data>
+  <data name="UserInvalidName" xml:space="preserve">
+    <value>Name must not be empty</value>
+  </data>
+
+  <!-- Auth -->
+  <data name="AuthWrongPin" xml:space="preserve">
+    <value>Wrong PIN</value>
+  </data>
+  <data name="AuthTryAgainInOneSecond" xml:space="preserve">
+    <value>Try again in 1 second</value>
+  </data>
+  <data name="AuthTryAgainInSeconds" xml:space="preserve">
+    <value>Try again in {0} seconds</value>
+  </data>
+
+  <!-- Setup and reset-support: errors -->
+  <data name="SetupAlreadyDone" xml:space="preserve">
+    <value>Setup has already been done: users exist</value>
+  </data>
+  <data name="SetupInvalidName" xml:space="preserve">
+    <value>The name must not be empty</value>
+  </data>
+  <data name="SetupReservedName" xml:space="preserve">
+    <value>"219volts Support" is reserved for the support user</value>
+  </data>
+  <data name="SetupInvalidPin" xml:space="preserve">
+    <value>The PIN must be exactly 4 digits</value>
+  </data>
+  <data name="SetupNoSupportUser" xml:space="preserve">
+    <value>There is no support user yet: run setup first</value>
+  </data>
+
+  <!-- Setup and reset-support: console messages -->
+  <data name="SetupOwnerNamePrompt" xml:space="preserve">
+    <value>Display name of the owner:</value>
+  </data>
+  <data name="SetupOwnerPinPrompt" xml:space="preserve">
+    <value>PIN for the owner (4 digits):</value>
+  </data>
+  <data name="SetupPinAgainPrompt" xml:space="preserve">
+    <value>Same PIN again:</value>
+  </data>
+  <data name="SetupPinsDoNotMatch" xml:space="preserve">
+    <value>The PINs do not match</value>
+  </data>
+  <data name="SetupCreated" xml:space="preserve">
+    <value>Created manager "{0}" and the support user.</value>
+  </data>
+  <data name="SetupSupportPasswordIntro" xml:space="preserve">
+    <value>Support password. Save it in the password manager now; it is shown only this once:</value>
+  </data>
+  <data name="SetupNothingChanged" xml:space="preserve">
+    <value>{0}. Nothing was changed.</value>
+  </data>
+  <data name="SetupNotAdministrator" xml:space="preserve">
+    <value>Run this from an administrator command prompt</value>
+  </data>
+  <data name="SetupNewSupportPasswordIntro" xml:space="preserve">
+    <value>New support password. Save it in the password manager now; it is shown only this once:</value>
+  </data>
+  <data name="SetupRestartService" xml:space="preserve">
+    <value>Then restart the 219volts service to sign out active Support sessions.</value>
+  </data>
+</root>

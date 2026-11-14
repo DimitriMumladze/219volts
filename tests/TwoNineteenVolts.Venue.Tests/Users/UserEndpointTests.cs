@@ -123,7 +123,10 @@ public class UserEndpointTests
         var deactivate = await client.PostAsync($"/api/users/{nino}/deactivate", null);
 
         Assert.Equal(HttpStatusCode.Conflict, deactivate.StatusCode);
-        Assert.Equal(UserError.ManagerCannotBeDeactivated, (await deactivate.Content.ReadFromJsonAsync<ProblemDetails>())!.Title);
+        var problem = (await deactivate.Content.ReadFromJsonAsync<ProblemDetails>())!;
+        Assert.Equal("The manager cannot be deactivated", problem.Title);
+        Assert.Equal(UserError.ManagerCannotBeDeactivated, problem.Extensions["code"]!.ToString());
+        Assert.Equal("UserManagerCannotBeDeactivated", UserError.ManagerCannotBeDeactivated);
         Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/auth/me")).StatusCode);
     }
 

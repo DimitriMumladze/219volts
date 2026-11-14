@@ -14,22 +14,23 @@ public class AuditReader(IVenueDbContext db)
         var pageSize = Math.Clamp(query.PageSize, 1, MaxPageSize);
 
         var entries = db.AuditEntries.AsQueryable();
-        if (query.From is { } from)
+        if (query.From is DateTime from)
         {
             entries = entries.Where(e => e.OccurredAt >= from);
         }
 
-        if (query.To is { } to)
+        if (query.To is DateTime to)
         {
             entries = entries.Where(e => e.OccurredAt <= to);
         }
 
-        if (query.UserId is { } userId)
+        if (query.UserId is int userId)
         {
             entries = entries.Where(e => e.ActorUserId == userId);
         }
 
-        if (query.Action is { } action)
+        var action = query.Action;
+        if (action is not null)
         {
             entries = entries.Where(e => e.Action == action);
         }

@@ -1,5 +1,7 @@
+using Microsoft.Extensions.Localization;
 using TwoNineteenVolts.Venue.Application.Setup;
 using TwoNineteenVolts.Venue.Infrastructure.Data;
+using TwoNineteenVolts.Venue.Resources;
 
 namespace TwoNineteenVolts.Venue.Commands.Setup;
 
@@ -7,6 +9,8 @@ namespace TwoNineteenVolts.Venue.Commands.Setup;
 // Only the conversation with the installer lives here; the rules are in SetupService.
 public class SetupCommand(IServiceProvider services, IConsole console)
 {
+    private readonly IStringLocalizer<Messages> _texts = services.GetRequiredService<IStringLocalizer<Messages>>();
+
     public async Task<int> RunAsync()
     {
         await services.MigrateDatabaseAsync();
@@ -19,14 +23,14 @@ public class SetupCommand(IServiceProvider services, IConsole console)
             return Fail(SetupError.AlreadyDone);
         }
 
-        console.WriteLine("Display name of the owner:");
+        console.WriteLine(_texts[SetupMessages.OwnerNamePrompt]);
         var name = console.ReadLine();
-        console.WriteLine("PIN for the owner (4 digits):");
+        console.WriteLine(_texts[SetupMessages.OwnerPinPrompt]);
         var pin = console.ReadSecret();
-        console.WriteLine("Same PIN again:");
+        console.WriteLine(_texts[SetupMessages.PinAgainPrompt]);
         if (console.ReadSecret() != pin)
         {
-            return Fail("The PINs do not match");
+            return Fail(SetupMessages.PinsDoNotMatch);
         }
 
         var result = await setup.SetUpAsync(name, pin);
@@ -35,15 +39,15 @@ public class SetupCommand(IServiceProvider services, IConsole console)
             return Fail(result.Error!);
         }
 
-        console.WriteLine($"Created manager \"{name.Trim()}\" and the support user.");
-        console.WriteLine("Support password. Save it in the password manager now; it is shown only this once:");
+        console.WriteLine(_texts[SetupMessages.Created, name.Trim()]);
+        console.WriteLine(_texts[SetupMessages.SupportPasswordIntro]);
         console.WriteLine(result.Value!);
         return 0;
     }
 
-    private int Fail(string message)
+    private int Fail(string key)
     {
-        console.WriteLine($"{message}. Nothing was changed.");
+        console.WriteLine(_texts[SetupMessages.NothingChanged, _texts[key]]);
         return 1;
     }
 }

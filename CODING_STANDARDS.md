@@ -116,6 +116,22 @@ Endpoints/Lamps/LampStatus.cs          -> record LampStatus
 Infrastructure/Lamps/ShellyClient.cs   -> class ShellyClient
 ```
 
+### 2.8 Null checks
+Don't use the `is { } x` / `is not { } x` patterns. Put the value in a local variable and compare with `null`; for a nullable value type, use a type pattern.
+
+```csharp
+var user = result.User;
+if (user is null)
+{
+    return Problems.Create(AuthError.WrongPin, StatusCodes.Status401Unauthorized);
+}
+
+if (result.RetryAfter is TimeSpan wait)
+{
+    ...
+}
+```
+
 ## 3. Project Layout
 
 ### 3.1 Repository
@@ -290,21 +306,20 @@ app.MapLampEndpoints();
 ```
 
 ### 4.2 Errors are ProblemDetails
-Return errors with `TypedResults.Problem(...)` so every error has the standard ProblemDetails shape (RFC 9457). Register `AddProblemDetails()` and call `app.UseExceptionHandler()` so unhandled exceptions use the same shape.
+Every error has the standard ProblemDetails shape (RFC 9457). Register `AddProblemDetails()` and call `app.UseExceptionHandler()` so unhandled exceptions use the same shape.
+
+Errors are identified by a **key** (a constant such as `DeviceError.NoAnswer = "DeviceNoAnswer"`); the user-facing text lives in `Resources/Messages.resx`. Endpoints return `Problems.Create(key, statusCode)`, which looks up the text when the reply is written and adds the key as `code`. Endpoint handlers never take the texts (`IStringLocalizer`) as a parameter.
 
 ```csharp
-return TypedResults.Problem(
-    title: "Lamp unreachable",
-    detail: "No response from 192.168.0.103",
-    statusCode: StatusCodes.Status503ServiceUnavailable);
+return Problems.Create(DeviceError.NoAnswer, StatusCodes.Status504GatewayTimeout);
 ```
 
 ```json
 {
-  "type": "https://tools.ietf.org/html/rfc9110#section-15.6.4",
-  "title": "Lamp unreachable",
-  "status": 503,
-  "detail": "No response from 192.168.0.103"
+  "type": "https://tools.ietf.org/html/rfc9110#section-15.6.5",
+  "title": "The device did not answer",
+  "status": 504,
+  "code": "DeviceNoAnswer"
 }
 ```
 

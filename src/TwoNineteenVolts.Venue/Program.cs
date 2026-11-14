@@ -23,6 +23,8 @@ builder.Services.ConfigureHttpJsonOptions(options =>
     options.SerializerOptions.RespectRequiredConstructorParameters = true;
 });
 builder.Services.AddSingleton(TimeProvider.System);
+// Texts come from Resources/Messages.resx through IStringLocalizer<Messages>.
+builder.Services.AddLocalization();
 builder.Services.AddData();
 builder.Services.AddAudit();
 builder.Services.AddAuth();

@@ -38,7 +38,7 @@ public class LoginService(IVenueDbContext db, IPinHasher hasher, LoginThrottle t
 
     private async Task<LoginResult> CheckSecretAsync(User user, string secret)
     {
-        if (throttle.TryStartAttempt(user.Id) is { } wait)
+        if (throttle.TryStartAttempt(user.Id) is TimeSpan wait)
         {
             return LoginResult.Throttled(wait);
         }

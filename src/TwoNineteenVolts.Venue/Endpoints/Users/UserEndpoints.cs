@@ -68,7 +68,7 @@ public static class UserEndpoints
             _ => StatusCodes.Status500InternalServerError
         };
 
-        return TypedResults.Problem(title: error, statusCode: statusCode);
+        return Problems.Create(error, statusCode);
     }
 
     private static UserResponse ToResponse(User user) =>

@@ -68,18 +68,18 @@ public static class AuthEndpoints
 
     private static async Task<IResult> ToResponseAsync(LoginResult result, HttpContext http)
     {
-        if (result.RetryAfter is { } wait)
+        if (result.RetryAfter is TimeSpan wait)
         {
             var seconds = (int)Math.Ceiling(wait.TotalSeconds);
             http.Response.Headers.RetryAfter = seconds.ToString();
-            return TypedResults.Problem(
-                title: $"Try again in {seconds} {(seconds == 1 ? "second" : "seconds")}",
-                statusCode: StatusCodes.Status429TooManyRequests);
+            var key = seconds == 1 ? AuthError.TryAgainInOneSecond : AuthError.TryAgainInSeconds;
+            return Problems.Create(key, StatusCodes.Status429TooManyRequests, textArguments: [seconds]);
         }
 
-        if (result.User is not { } user)
+        var user = result.User;
+        if (user is null)
         {
-            return TypedResults.Problem(title: "Wrong PIN", statusCode: StatusCodes.Status401Unauthorized);
+            return Problems.Create(AuthError.WrongPin, StatusCodes.Status401Unauthorized);
         }
 
         await http.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, CreatePrincipal(user));

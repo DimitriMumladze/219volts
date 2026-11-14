@@ -118,9 +118,31 @@ public class AuthEndpointTests
         Assert.Equal("1", retry.Headers.GetValues("Retry-After").Single());
         var problem = await retry.Content.ReadFromJsonAsync<ProblemDetails>();
         Assert.Equal("Try again in 1 second", problem!.Title);
+        Assert.Equal("AuthTryAgainInOneSecond", problem.Extensions["code"]!.ToString());
 
         factory.Time.Advance(TimeSpan.FromSeconds(1));
         Assert.Equal(HttpStatusCode.OK, (await client.LoginAsync(nino, "0123")).StatusCode);
+    }
+
+    [Fact]
+    public async Task Fifth_wrong_pin_says_try_again_in_2_seconds()
+    {
+        using var factory = new VenueAppFactory();
+        var nino = await TestUsers.AddAsync(factory, "Nino", Role.Manager, "0123");
+        using var client = factory.CreateClient();
+        for (var attempt = 1; attempt <= 4; attempt++)
+        {
+            await AssertWrongPinAsync(await client.LoginAsync(nino, "9999"));
+        }
+
+        factory.Time.Advance(TimeSpan.FromSeconds(1));
+        await AssertWrongPinAsync(await client.LoginAsync(nino, "9999"));
+        var retry = await client.LoginAsync(nino, "0123");
+
+        Assert.Equal(HttpStatusCode.TooManyRequests, retry.StatusCode);
+        var problem = await retry.Content.ReadFromJsonAsync<ProblemDetails>();
+        Assert.Equal("Try again in 2 seconds", problem!.Title);
+        Assert.Equal("AuthTryAgainInSeconds", problem.Extensions["code"]!.ToString());
     }
 
     [Fact]
@@ -225,5 +247,6 @@ public class AuthEndpointTests
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
         var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
         Assert.Equal("Wrong PIN", problem!.Title);
+        Assert.Equal("AuthWrongPin", problem.Extensions["code"]!.ToString());
     }
 }

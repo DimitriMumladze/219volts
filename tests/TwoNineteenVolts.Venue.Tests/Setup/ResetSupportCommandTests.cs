@@ -29,8 +29,8 @@ public class ResetSupportCommandTests
     [Fact]
     public async Task Reset_support_without_admin_does_not_touch_the_database()
     {
-        // An empty service provider: any attempt to migrate or open the database throws.
-        using var nothing = new ServiceCollection().BuildServiceProvider();
+        // Only the texts are registered: any attempt to migrate or open the database throws.
+        using var nothing = new ServiceCollection().AddLogging().AddLocalization().BuildServiceProvider();
         var console = new FakeConsole();
 
         var exitCode = await new ResetSupportCommand(nothing, console, () => false).RunAsync();

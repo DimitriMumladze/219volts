@@ -13,6 +13,7 @@ public class ArchitectureTests
     private const string Endpoints = Root + ".Endpoints";
     private const string Commands = Root + ".Commands";
     private const string Common = Root + ".Common";
+    private const string Resources = Root + ".Resources";
 
     [Fact]
     public void Domain_uses_nothing_else_in_the_project()
@@ -36,6 +37,15 @@ public class ArchitectureTests
     public void Application_never_touches_the_http_request()
     {
         AssertNoDependency(Application, "Microsoft.AspNetCore");
+    }
+
+    // Services return keys; only the layers that show something to a person turn them into text.
+    [Fact]
+    public void Only_endpoints_and_commands_use_resources()
+    {
+        AssertNoDependency(Domain, Resources);
+        AssertNoDependency(Application, Resources);
+        AssertNoDependency(Infrastructure, Resources);
     }
 
     private static void AssertNoDependency(string layer, params string[] forbidden)
