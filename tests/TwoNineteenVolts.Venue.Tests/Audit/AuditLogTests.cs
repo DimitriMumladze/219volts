@@ -9,7 +9,7 @@ namespace TwoNineteenVolts.Venue.Tests.Audit;
 
 public class AuditLogTests
 {
-    private static readonly AuditActor Manager = new(1, "Nino");
+    private static readonly AuditActor Manager = new(1, "Nino", Role.Manager);
 
     [Fact]
     public async Task Entry_is_saved_together_with_the_change()
@@ -68,6 +68,6 @@ public class AuditLogTests
     [Fact]
     public void Unknown_actor_has_no_user_id_and_is_named_unknown()
     {
-        Assert.Equal(new AuditActor(null, "unknown"), AuditActor.Unknown);
+        Assert.Equal(new AuditActor(null, "unknown", null), AuditActor.Unknown);
     }
 }

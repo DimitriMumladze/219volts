@@ -10,7 +10,7 @@ namespace TwoNineteenVolts.Venue.Application.Setup;
 
 public class ResetSupportService(IVenueDbContext db, IPinHasher hasher, IAuditLog audit)
 {
-    private static readonly AuditActor Actor = new(null, "reset-support");
+    private static readonly AuditActor Actor = new(null, "reset-support", null);
 
     public async Task<Result<string>> ResetAsync()
     {

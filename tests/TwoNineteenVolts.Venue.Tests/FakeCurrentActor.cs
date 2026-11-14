@@ -1,0 +1,11 @@
+using TwoNineteenVolts.Venue.Application.Audit;
+
+namespace TwoNineteenVolts.Venue.Tests;
+
+public class FakeCurrentActor(AuditActor actor) : ICurrentActor
+{
+    public AuditActor Get()
+    {
+        return actor;
+    }
+}

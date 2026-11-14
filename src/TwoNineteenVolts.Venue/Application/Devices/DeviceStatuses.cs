@@ -18,7 +18,9 @@ public class DeviceStatuses(TimeProvider time, ILogger<DeviceStatuses> logger)
                 return DeviceStatus.Unknown;
             }
 
-            return new DeviceStatus(entry.State == State.Online, entry.LastSeen, entry.Channels);
+            var isOnline = entry.State == State.Online;
+            var channels = CopyOf(entry.Channels);
+            return new DeviceStatus(isOnline, entry.LastSeen, channels);
         }
     }
 
@@ -43,7 +45,8 @@ public class DeviceStatuses(TimeProvider time, ILogger<DeviceStatuses> logger)
         lock (_lock)
         {
             var entry = GetOrCreateEntry(deviceId);
-            entry.Channels = [.. states];
+            var known = states.Select(state => (bool?)state);
+            entry.Channels = [.. known];
         }
     }
 
@@ -60,6 +63,23 @@ public class DeviceStatuses(TimeProvider time, ILogger<DeviceStatuses> logger)
             if (channels is not null && channel >= 1 && channel <= channels.Length)
             {
                 channels[channel - 1] = on;
+            }
+        }
+    }
+
+    public void ForgetChannel(int deviceId, int channel)
+    {
+        lock (_lock)
+        {
+            if (!_entries.TryGetValue(deviceId, out var entry))
+            {
+                return;
+            }
+
+            var channels = entry.Channels;
+            if (channels is not null && channel >= 1 && channel <= channels.Length)
+            {
+                channels[channel - 1] = null;
             }
         }
     }
@@ -95,6 +115,16 @@ public class DeviceStatuses(TimeProvider time, ILogger<DeviceStatuses> logger)
         }
     }
 
+    private static bool?[]? CopyOf(bool?[]? channels)
+    {
+        if (channels is null)
+        {
+            return null;
+        }
+
+        return [.. channels];
+    }
+
     private Entry GetOrCreateEntry(int deviceId)
     {
         if (!_entries.TryGetValue(deviceId, out var entry))
@@ -121,6 +151,6 @@ public class DeviceStatuses(TimeProvider time, ILogger<DeviceStatuses> logger)
 
         public DateTime? LastSeen { get; set; }
 
-        public bool[]? Channels { get; set; }
+        public bool?[]? Channels { get; set; }
     }
 }

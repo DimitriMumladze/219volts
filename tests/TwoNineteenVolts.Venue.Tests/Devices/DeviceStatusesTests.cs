@@ -103,6 +103,24 @@ public class DeviceStatusesTests
     }
 
     [Fact]
+    public void Forgotten_channel_is_unknown_and_others_stay_known()
+    {
+        var statuses = NewStatuses();
+        statuses.RecordOutcome(DeviceId, error: null);
+        statuses.StoreChannels(DeviceId, [true, true, false]);
+
+        statuses.ForgetChannel(DeviceId, 2);
+
+        var status = statuses.Get(DeviceId);
+        var channelOne = status.IsOn(1);
+        var channelTwo = status.IsOn(2);
+        var channelThree = status.IsOn(3);
+        Assert.True(channelOne);
+        Assert.Null(channelTwo);
+        Assert.False(channelThree);
+    }
+
+    [Fact]
     public void Stored_channel_state_is_returned_while_online()
     {
         var statuses = NewStatuses();

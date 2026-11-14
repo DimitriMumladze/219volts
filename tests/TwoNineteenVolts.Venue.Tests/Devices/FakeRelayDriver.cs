@@ -17,6 +17,8 @@ public class FakeRelayDriver(DeviceKind kind) : IRelayDriver
 
     public string? Error { get; set; }
 
+    public string? ReadError { get; set; }
+
     public bool IgnoreSet { get; set; }
 
     public TaskCompletionSource? Gate { get; set; }
@@ -52,9 +54,10 @@ public class FakeRelayDriver(DeviceKind kind) : IRelayDriver
     public Task<Result<bool>> ReadAsync(Device device, int channel, CancellationToken cancellationToken)
     {
         Record($"read {device.Id}/{channel}");
-        if (Error is not null)
+        var error = Error ?? ReadError;
+        if (error is not null)
         {
-            var failure = Result<bool>.Fail(Error);
+            var failure = Result<bool>.Fail(error);
             return Task.FromResult(failure);
         }
 

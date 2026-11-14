@@ -4,6 +4,7 @@ using Microsoft.Extensions.Localization;
 using TwoNineteenVolts.Venue.Application.Auth;
 using TwoNineteenVolts.Venue.Application.Devices;
 using TwoNineteenVolts.Venue.Application.Setup;
+using TwoNineteenVolts.Venue.Application.Spots;
 using TwoNineteenVolts.Venue.Application.Users;
 using TwoNineteenVolts.Venue.Commands.Setup;
 using TwoNineteenVolts.Venue.Resources;
@@ -18,7 +19,8 @@ public class MessagesTests
         typeof(SetupError),
         typeof(AuthError),
         typeof(SetupMessages),
-        typeof(DeviceError)
+        typeof(DeviceError),
+        typeof(SpotError)
     ];
 
     [Fact]

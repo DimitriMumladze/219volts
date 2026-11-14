@@ -12,7 +12,7 @@ public class SetupService(IVenueDbContext db, IPinHasher hasher, IAuditLog audit
 {
     public const string SupportDisplayName = "219volts Support";
 
-    private static readonly AuditActor Actor = new(null, "setup");
+    private static readonly AuditActor Actor = new(null, "setup", null);
 
     public Task<bool> IsDoneAsync() => db.Users.AnyAsync();
 

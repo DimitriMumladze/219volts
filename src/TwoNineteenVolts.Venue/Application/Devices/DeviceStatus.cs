@@ -1,6 +1,6 @@
 namespace TwoNineteenVolts.Venue.Application.Devices;
 
-public record DeviceStatus(bool IsOnline, DateTime? LastSeen, IReadOnlyList<bool>? Channels)
+public record DeviceStatus(bool IsOnline, DateTime? LastSeen, IReadOnlyList<bool?>? Channels)
 {
     public static DeviceStatus Unknown { get; } = new(false, null, null);
 

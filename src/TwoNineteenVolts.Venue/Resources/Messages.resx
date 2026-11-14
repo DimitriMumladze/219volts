@@ -59,6 +59,47 @@
     <value>The device answered with an error</value>
   </data>
 
+  <!-- Spots -->
+  <data name="SpotNotFound" xml:space="preserve">
+    <value>Spot not found</value>
+  </data>
+  <data name="SpotInvalidName" xml:space="preserve">
+    <value>Name must not be empty</value>
+  </data>
+  <data name="SpotNameTooLong" xml:space="preserve">
+    <value>The name can have at most 30 characters</value>
+  </data>
+  <data name="SpotDuplicateName" xml:space="preserve">
+    <value>Another spot already has this name</value>
+  </data>
+  <data name="SpotInvalidMapping" xml:space="preserve">
+    <value>Give both a device and a channel, or neither</value>
+  </data>
+  <data name="SpotUnknownDevice" xml:space="preserve">
+    <value>This device does not exist</value>
+  </data>
+  <data name="SpotChannelOutOfRange" xml:space="preserve">
+    <value>This device has no such channel</value>
+  </data>
+  <data name="SpotChannelInUse" xml:space="preserve">
+    <value>Another spot already uses this channel</value>
+  </data>
+  <data name="SpotUnmapped" xml:space="preserve">
+    <value>This spot has no device yet</value>
+  </data>
+  <data name="SpotArchived" xml:space="preserve">
+    <value>This spot is archived</value>
+  </data>
+  <data name="SpotCodeTaken" xml:space="preserve">
+    <value>The new code is already in use; try again</value>
+  </data>
+  <data name="SpotOnlyNameChangeAllowed" xml:space="preserve">
+    <value>Only Support can change a spot's device or channel</value>
+  </data>
+  <data name="SpotStateMismatch" xml:space="preserve">
+    <value>The relay did not switch</value>
+  </data>
+
   <!-- Auth -->
   <data name="AuthWrongPin" xml:space="preserve">
     <value>Wrong PIN</value>

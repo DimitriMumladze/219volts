@@ -50,7 +50,7 @@ public class LoginService(IVenueDbContext db, IPinHasher hasher, LoginThrottle t
         }
 
         throttle.RecordSuccess(user.Id);
-        var actor = new AuditActor(user.Id, user.DisplayName);
+        var actor = new AuditActor(user.Id, user.DisplayName, user.Role);
         var loginTarget = AuditTarget.User(user.Id);
         audit.Record(actor, AuditActions.Login, loginTarget);
         await db.SaveChangesAsync();

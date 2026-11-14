@@ -1,6 +1,7 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using TwoNineteenVolts.Venue.Application.Audit;
+using TwoNineteenVolts.Venue.Domain.Users;
 using TwoNineteenVolts.Venue.Infrastructure.Auth;
 
 namespace TwoNineteenVolts.Venue.Tests.Auth;
@@ -21,7 +22,7 @@ public class CurrentActorTests
 
         var actor = new CurrentActor(accessor).Get();
 
-        Assert.Equal(new AuditActor(7, "Nino"), actor);
+        Assert.Equal(new AuditActor(7, "Nino", Role.Manager), actor);
     }
 
     [Fact]

@@ -4,12 +4,14 @@ using TwoNineteenVolts.Venue.Commands.Setup;
 using TwoNineteenVolts.Venue.Endpoints.Audit;
 using TwoNineteenVolts.Venue.Endpoints.Auth;
 using TwoNineteenVolts.Venue.Endpoints.Devices;
+using TwoNineteenVolts.Venue.Endpoints.Spots;
 using TwoNineteenVolts.Venue.Endpoints.Users;
 using TwoNineteenVolts.Venue.Infrastructure.Audit;
 using TwoNineteenVolts.Venue.Infrastructure.Auth;
 using TwoNineteenVolts.Venue.Infrastructure.Data;
 using TwoNineteenVolts.Venue.Infrastructure.Devices;
 using TwoNineteenVolts.Venue.Infrastructure.Setup;
+using TwoNineteenVolts.Venue.Infrastructure.Spots;
 using TwoNineteenVolts.Venue.Infrastructure.Users;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -31,6 +33,7 @@ builder.Services.AddAuth();
 builder.Services.AddUsers();
 builder.Services.AddSetup();
 builder.Services.AddDevices();
+builder.Services.AddSpots();
 
 var app = builder.Build();
 
@@ -64,6 +67,7 @@ app.MapAuthEndpoints();
 app.MapUserEndpoints();
 app.MapAuditEndpoints();
 app.MapDeviceEndpoints();
+app.MapSpotEndpoints();
 
 await app.RunAsync();
 return 0;
