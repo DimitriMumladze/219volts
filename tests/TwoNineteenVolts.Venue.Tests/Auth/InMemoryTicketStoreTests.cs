@@ -1,20 +1,15 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
-using Microsoft.Extensions.Time.Testing;
 using TwoNineteenVolts.Venue.Infrastructure.Auth;
 
 namespace TwoNineteenVolts.Venue.Tests.Auth;
 
 public class InMemoryTicketStoreTests
 {
-    private static readonly TimeSpan Timeout = TimeSpan.FromHours(1);
-
-    private readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 11, 11, 10, 0, 0, TimeSpan.Zero));
-
     [Fact]
     public async Task Store_then_retrieve_returns_ticket()
     {
-        var store = new InMemoryTicketStore(_time);
+        var store = new InMemoryTicketStore();
         var ticket = TicketFor(7, "Nino");
 
         var key = await store.StoreAsync(ticket);
@@ -26,7 +21,7 @@ public class InMemoryTicketStoreTests
     [Fact]
     public async Task Each_session_gets_its_own_key()
     {
-        var store = new InMemoryTicketStore(_time);
+        var store = new InMemoryTicketStore();
 
         var first = await store.StoreAsync(TicketFor(7, "Nino"));
         var second = await store.StoreAsync(TicketFor(7, "Nino"));
@@ -37,7 +32,7 @@ public class InMemoryTicketStoreTests
     [Fact]
     public async Task EndSessionsFor_removes_all_sessions_of_that_user_only()
     {
-        var store = new InMemoryTicketStore(_time);
+        var store = new InMemoryTicketStore();
         var ninoTablet = await store.StoreAsync(TicketFor(7, "Nino"));
         var ninoCounter = await store.StoreAsync(TicketFor(7, "Nino"));
         var gio = await store.StoreAsync(TicketFor(8, "Gio"));
@@ -50,35 +45,39 @@ public class InMemoryTicketStoreTests
     }
 
     [Fact]
-    public async Task RemoveIdleSessions_returns_and_removes_sessions_idle_longer_than_timeout()
-    {
-        var store = new InMemoryTicketStore(_time);
-        var active = await store.StoreAsync(TicketFor(7, "Nino"));
-        var idle = await store.StoreAsync(TicketFor(8, "Gio"));
-
-        _time.Advance(TimeSpan.FromMinutes(30));
-        await store.RetrieveAsync(active);
-        _time.Advance(TimeSpan.FromMinutes(31));
-
-        var removed = store.RemoveIdleSessions(Timeout);
-
-        var session = Assert.Single(removed);
-        Assert.Equal(idle, session.Key);
-        Assert.Equal(8, session.UserId);
-        Assert.Equal("Gio", session.UserName);
-        Assert.Null(await store.RetrieveAsync(idle));
-        Assert.NotNull(await store.RetrieveAsync(active));
-    }
-
-    [Fact]
     public async Task Remove_ends_the_session()
     {
-        var store = new InMemoryTicketStore(_time);
+        var store = new InMemoryTicketStore();
         var key = await store.StoreAsync(TicketFor(7, "Nino"));
 
         await store.RemoveAsync(key);
 
         Assert.Null(await store.RetrieveAsync(key));
+    }
+
+    [Fact]
+    public async Task Renew_does_not_bring_back_an_ended_session()
+    {
+        var store = new InMemoryTicketStore();
+        var ticket = TicketFor(7, "Nino");
+        var key = await store.StoreAsync(ticket);
+        store.EndSessionsFor(7);
+
+        await store.RenewAsync(key, ticket);
+
+        Assert.Null(await store.RetrieveAsync(key));
+    }
+
+    [Fact]
+    public async Task Renew_replaces_the_ticket_of_an_existing_session()
+    {
+        var store = new InMemoryTicketStore();
+        var key = await store.StoreAsync(TicketFor(7, "Nino"));
+        var renewed = TicketFor(7, "Nino");
+
+        await store.RenewAsync(key, renewed);
+
+        Assert.Same(renewed, await store.RetrieveAsync(key));
     }
 
     private static AuthenticationTicket TicketFor(int userId, string name)

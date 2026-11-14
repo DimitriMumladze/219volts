@@ -15,7 +15,6 @@ public class PersistenceTests
     {
         using var factory = new VenueAppFactory();
         var user = new User("Nino", Role.Manager, "secret-hash", CreatedAt);
-        user.SetRemoteAccess(true);
         user.Deactivate();
 
         using (var scope = factory.Services.CreateScope())
@@ -34,7 +33,6 @@ public class PersistenceTests
             Assert.Equal(Role.Manager, loaded.Role);
             Assert.Equal("secret-hash", loaded.SecretHash);
             Assert.False(loaded.IsActive);
-            Assert.True(loaded.RemoteAccessAllowed);
             Assert.Equal(CreatedAt, loaded.CreatedAt);
         }
     }
@@ -49,7 +47,6 @@ public class PersistenceTests
             OccurredAt = CreatedAt,
             ActorUserId = null,
             ActorName = "setup",
-            Source = AuditSource.Local,
             Action = AuditActions.UserCreated,
             Target = null,
             Details = null
@@ -98,7 +95,6 @@ public class PersistenceTests
             OccurredAt = CreatedAt,
             ActorUserId = null,
             ActorName = "unknown",
-            Source = AuditSource.Local,
             Action = AuditActions.LoginFailed,
             Target = "user:7",
             Details = null
@@ -119,7 +115,6 @@ public class PersistenceTests
             Assert.Equal(CreatedAt, loaded.OccurredAt);
             Assert.Null(loaded.ActorUserId);
             Assert.Equal("unknown", loaded.ActorName);
-            Assert.Equal(AuditSource.Local, loaded.Source);
             Assert.Equal(AuditActions.LoginFailed, loaded.Action);
             Assert.Equal("user:7", loaded.Target);
             Assert.Null(loaded.Details);

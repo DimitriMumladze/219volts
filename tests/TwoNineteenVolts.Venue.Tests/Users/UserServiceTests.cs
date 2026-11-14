@@ -23,7 +23,7 @@ public class UserServiceTests
         using var factory = new VenueAppFactory();
         await TestUsers.AddAsync(factory, "Nino", Role.Manager, "1234");
 
-        var result = await UseServiceAsync(factory, users => users.CreateAsync(name, Role.Staff, "5678"));
+        var result = await UseServiceAsync(factory, users => users.CreateAsync(name, "5678"));
 
         Assert.Equal(UserError.DuplicateName, result.Error);
     }
@@ -33,7 +33,7 @@ public class UserServiceTests
     {
         using var factory = new VenueAppFactory();
 
-        var result = await UseServiceAsync(factory, users => users.CreateAsync("  Gio ", Role.Staff, "0123"));
+        var result = await UseServiceAsync(factory, users => users.CreateAsync("  Gio ", "0123"));
 
         var gio = await FindAsync(factory, result.Value!.Id);
         Assert.Equal("Gio", gio.DisplayName);
@@ -47,8 +47,8 @@ public class UserServiceTests
     {
         using var factory = new VenueAppFactory();
 
-        Assert.Equal(UserError.InvalidName, (await UseServiceAsync(factory, users => users.CreateAsync("   ", Role.Staff, "0123"))).Error);
-        Assert.Equal(UserError.InvalidPin, (await UseServiceAsync(factory, users => users.CreateAsync("Gio", Role.Staff, "123"))).Error);
+        Assert.Equal(UserError.InvalidName, (await UseServiceAsync(factory, users => users.CreateAsync("   ", "0123"))).Error);
+        Assert.Equal(UserError.InvalidPin, (await UseServiceAsync(factory, users => users.CreateAsync("Gio", "123"))).Error);
     }
 
     [Fact]
@@ -83,20 +83,9 @@ public class UserServiceTests
         var nino = await TestUsers.AddAsync(factory, "Nino", Role.Staff, "1234");
 
         await UseServiceAsync(factory, users => users.RenameAsync(nino, "Nina"));
-        var result = await UseServiceAsync(factory, users => users.CreateAsync("Nino", Role.Staff, "5678"));
+        var result = await UseServiceAsync(factory, users => users.CreateAsync("Nino", "5678"));
 
         Assert.False(result.IsFailure);
-    }
-
-    [Fact]
-    public async Task Cannot_create_support_role()
-    {
-        using var factory = new VenueAppFactory();
-        var gio = await TestUsers.AddAsync(factory, "Gio", Role.Staff, "5678");
-
-        Assert.Equal(UserError.InvalidRole, (await UseServiceAsync(factory, users => users.CreateAsync("Eve", Role.Support, "1234"))).Error);
-        Assert.Equal(UserError.InvalidRole, (await UseServiceAsync(factory, users => users.ChangeRoleAsync(gio, Role.Support))).Error);
-        Assert.Equal(UserError.InvalidRole, (await UseServiceAsync(factory, users => users.CreateAsync("Eve", (Role)42, "1234"))).Error);
     }
 
     [Fact]
@@ -106,58 +95,35 @@ public class UserServiceTests
         var support = await TestUsers.AddAsync(factory, "219volts Support", Role.Support, "support-password");
 
         Assert.Equal(UserError.NotFound, (await UseServiceAsync(factory, users => users.RenameAsync(support, "Eve"))).Error);
-        Assert.Equal(UserError.NotFound, (await UseServiceAsync(factory, users => users.ChangeRoleAsync(support, Role.Staff))).Error);
         Assert.Equal(UserError.NotFound, (await UseServiceAsync(factory, users => users.SetPinAsync(support, "1234"))).Error);
-        Assert.Equal(UserError.NotFound, (await UseServiceAsync(factory, users => users.SetRemoteAccessAsync(support, true))).Error);
         Assert.Equal(UserError.NotFound, (await UseServiceAsync(factory, users => users.DeactivateAsync(support))).Error);
         Assert.Equal(UserError.NotFound, (await UseServiceAsync(factory, users => users.ReactivateAsync(support))).Error);
         Assert.Equal(UserError.NotFound, (await UseServiceAsync(factory, users => users.RenameAsync(999, "Eve"))).Error);
     }
 
     [Fact]
-    public async Task Last_manager_cannot_be_deactivated_or_demoted()
+    public async Task Manager_cannot_be_deactivated()
     {
         using var factory = new VenueAppFactory();
         var nino = await TestUsers.AddAsync(factory, "Nino", Role.Manager, "1234");
-        var gio = await TestUsers.AddAsync(factory, "Gio", Role.Manager, "5678");
-
-        Assert.False((await UseServiceAsync(factory, users => users.DeactivateAsync(gio))).IsFailure);
-
-        Assert.Equal(UserError.LastManager, (await UseServiceAsync(factory, users => users.DeactivateAsync(nino))).Error);
-        Assert.Equal(UserError.LastManager, (await UseServiceAsync(factory, users => users.ChangeRoleAsync(nino, Role.Staff))).Error);
-        var stillManager = await FindAsync(factory, nino);
-        Assert.True(stillManager.IsActive);
-        Assert.Equal(Role.Manager, stillManager.Role);
-    }
-
-    [Fact]
-    public async Task Support_does_not_count_as_manager()
-    {
-        using var factory = new VenueAppFactory();
-        var nino = await TestUsers.AddAsync(factory, "Nino", Role.Manager, "1234");
-        await TestUsers.AddAsync(factory, "219volts Support", Role.Support, "support-password");
 
         var result = await UseServiceAsync(factory, users => users.DeactivateAsync(nino));
 
-        Assert.Equal(UserError.LastManager, result.Error);
+        Assert.Equal(UserError.ManagerCannotBeDeactivated, result.Error);
+        Assert.True((await FindAsync(factory, nino)).IsActive);
     }
 
     [Fact]
-    public async Task Deactivate_and_role_change_end_sessions()
+    public async Task Deactivate_ends_sessions()
     {
         using var factory = new VenueAppFactory();
-        await TestUsers.AddAsync(factory, "Nino", Role.Manager, "1234");
         var gio = await TestUsers.AddAsync(factory, "Gio", Role.Staff, "5678");
-        var dato = await TestUsers.AddAsync(factory, "Dato", Role.Staff, "9012");
         var store = factory.Services.GetRequiredService<InMemoryTicketStore>();
-        var gioSession = await store.StoreAsync(TicketFor(gio, "Gio"));
-        var datoSession = await store.StoreAsync(TicketFor(dato, "Dato"));
+        var session = await store.StoreAsync(TicketFor(gio, "Gio"));
 
         await UseServiceAsync(factory, users => users.DeactivateAsync(gio));
-        await UseServiceAsync(factory, users => users.ChangeRoleAsync(dato, Role.Manager));
 
-        Assert.Null(await store.RetrieveAsync(gioSession));
-        Assert.Null(await store.RetrieveAsync(datoSession));
+        Assert.Null(await store.RetrieveAsync(session));
     }
 
     [Fact]
@@ -169,6 +135,19 @@ public class UserServiceTests
         var session = await store.StoreAsync(TicketFor(gio, "Gio"));
 
         await UseServiceAsync(factory, users => users.RenameAsync(gio, "Giorgi"));
+
+        Assert.Null(await store.RetrieveAsync(session));
+    }
+
+    [Fact]
+    public async Task Pin_change_ends_sessions_so_a_leaked_pin_stops_working()
+    {
+        using var factory = new VenueAppFactory();
+        var gio = await TestUsers.AddAsync(factory, "Gio", Role.Staff, "5678");
+        var store = factory.Services.GetRequiredService<InMemoryTicketStore>();
+        var session = await store.StoreAsync(TicketFor(gio, "Gio"));
+
+        await UseServiceAsync(factory, users => users.SetPinAsync(gio, "0000"));
 
         Assert.Null(await store.RetrieveAsync(session));
     }
@@ -193,11 +172,9 @@ public class UserServiceTests
         using var factory = new VenueAppFactory();
         await TestUsers.AddAsync(factory, "Nino", Role.Manager, "1234");
 
-        var gio = (await UseServiceAsync(factory, users => users.CreateAsync("Gio", Role.Staff, "5678"))).Value!.Id;
+        var gio = (await UseServiceAsync(factory, users => users.CreateAsync("Gio", "5678"))).Value!.Id;
         await UseServiceAsync(factory, users => users.RenameAsync(gio, "Giorgi"));
-        await UseServiceAsync(factory, users => users.ChangeRoleAsync(gio, Role.Manager));
         await UseServiceAsync(factory, users => users.SetPinAsync(gio, "0000"));
-        await UseServiceAsync(factory, users => users.SetRemoteAccessAsync(gio, true));
         await UseServiceAsync(factory, users => users.DeactivateAsync(gio));
         await UseServiceAsync(factory, users => users.ReactivateAsync(gio));
 
@@ -207,11 +184,9 @@ public class UserServiceTests
 
         Assert.Equal(
             [
-                (AuditActions.UserCreated, (string?)"Staff"),
+                (AuditActions.UserCreated, (string?)null),
                 (AuditActions.UserRenamed, "Gio"),
-                (AuditActions.UserRoleChanged, "Staff → Manager"),
                 (AuditActions.UserPinSet, null),
-                (AuditActions.UserRemoteAccessChanged, "on"),
                 (AuditActions.UserDeactivated, null),
                 (AuditActions.UserReactivated, null)
             ],
@@ -226,7 +201,7 @@ public class UserServiceTests
         var nino = await TestUsers.AddAsync(factory, "Nino", Role.Manager, "1234");
 
         await UseServiceAsync(factory, users => users.DeactivateAsync(nino));
-        await UseServiceAsync(factory, users => users.CreateAsync("nino", Role.Staff, "1234"));
+        await UseServiceAsync(factory, users => users.CreateAsync("nino", "1234"));
 
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<VenueDbContext>();

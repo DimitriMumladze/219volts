@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using TwoNineteenVolts.Venue.Application.Users;
 using TwoNineteenVolts.Venue.Domain.Audit;
 using TwoNineteenVolts.Venue.Domain.Users;
 using TwoNineteenVolts.Venue.Infrastructure.Data;
@@ -13,7 +14,7 @@ public class UserEndpointTests
 {
     private record Me(int Id, string DisplayName, string Role);
 
-    private record UserDto(int Id, string DisplayName, string Role, bool IsActive, bool RemoteAccessAllowed, DateTime CreatedAt);
+    private record UserDto(int Id, string DisplayName, string Role, bool IsActive, DateTime CreatedAt);
 
     [Fact]
     public async Task Staff_gets_403_on_users()
@@ -24,7 +25,7 @@ public class UserEndpointTests
         await client.LoginAsync(gio, "5678");
 
         Assert.Equal(HttpStatusCode.Forbidden, (await client.GetAsync("/api/users")).StatusCode);
-        Assert.Equal(HttpStatusCode.Forbidden, (await client.PostAsJsonAsync("/api/users", new { displayName = "Eve", role = "Manager", pin = "1234" })).StatusCode);
+        Assert.Equal(HttpStatusCode.Forbidden, (await client.PostAsJsonAsync("/api/users", new { displayName = "Eve", pin = "1234" })).StatusCode);
     }
 
     [Fact]
@@ -44,11 +45,11 @@ public class UserEndpointTests
         await TestUsers.AddAsync(factory, "219volts Support", Role.Support, "support-password");
         using var client = await LoggedInAsync(factory, nino, "1234");
 
-        var create = await client.PostAsJsonAsync("/api/users", new { displayName = "Gio", role = "Staff", pin = "5678" });
+        var create = await client.PostAsJsonAsync("/api/users", new { displayName = "Gio", pin = "5678" });
         Assert.Equal(HttpStatusCode.Created, create.StatusCode);
         var gio = (await create.Content.ReadFromJsonAsync<UserDto>())!;
         Assert.Equal($"/api/users/{gio.Id}", create.Headers.Location!.OriginalString);
-        Assert.Equal(new UserDto(gio.Id, "Gio", "Staff", true, false, factory.Time.GetUtcNow().UtcDateTime), gio);
+        Assert.Equal(new UserDto(gio.Id, "Gio", "Staff", true, factory.Time.GetUtcNow().UtcDateTime), gio);
 
         var listed = await client.GetFromJsonAsync<List<UserDto>>("/api/users");
         Assert.Equal(["Gio", "Nino"], listed!.Select(u => u.DisplayName));
@@ -59,7 +60,7 @@ public class UserEndpointTests
     }
 
     [Fact]
-    public async Task Manager_can_rename_change_role_set_pin_and_remote_access()
+    public async Task Manager_can_rename_and_set_pin()
     {
         using var factory = new VenueAppFactory();
         var nino = await TestUsers.AddAsync(factory, "Nino", Role.Manager, "1234");
@@ -67,12 +68,9 @@ public class UserEndpointTests
         using var client = await LoggedInAsync(factory, nino, "1234");
 
         Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/users/{gio}/name", new { displayName = "Giorgi" })).StatusCode);
-        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/users/{gio}/role", new { role = "Manager" })).StatusCode);
-        Assert.Equal(HttpStatusCode.OK, (await client.PutAsJsonAsync($"/api/users/{gio}/pin", new { pin = "0000" })).StatusCode);
-        var remote = await client.PutAsJsonAsync($"/api/users/{gio}/remote-access", new { allowed = true });
+        var pin = await client.PutAsJsonAsync($"/api/users/{gio}/pin", new { pin = "0000" });
 
-        var updated = (await remote.Content.ReadFromJsonAsync<UserDto>())!;
-        Assert.Equal(("Giorgi", "Manager", true), (updated.DisplayName, updated.Role, updated.RemoteAccessAllowed));
+        Assert.Equal("Giorgi", (await pin.Content.ReadFromJsonAsync<UserDto>())!.DisplayName);
         using var giorgi = factory.CreateClient();
         Assert.Equal(HttpStatusCode.OK, (await giorgi.LoginAsync(gio, "0000")).StatusCode);
     }
@@ -116,14 +114,16 @@ public class UserEndpointTests
     }
 
     [Fact]
-    public async Task Last_manager_cannot_demote_or_deactivate_themselves()
+    public async Task Manager_cannot_deactivate_themselves()
     {
         using var factory = new VenueAppFactory();
         var nino = await TestUsers.AddAsync(factory, "Nino", Role.Manager, "1234");
         using var client = await LoggedInAsync(factory, nino, "1234");
 
-        await AssertProblemAsync(await client.PutAsJsonAsync($"/api/users/{nino}/role", new { role = "Staff" }), HttpStatusCode.Conflict);
-        await AssertProblemAsync(await client.PostAsync($"/api/users/{nino}/deactivate", null), HttpStatusCode.Conflict);
+        var deactivate = await client.PostAsync($"/api/users/{nino}/deactivate", null);
+
+        Assert.Equal(HttpStatusCode.Conflict, deactivate.StatusCode);
+        Assert.Equal(UserError.ManagerCannotBeDeactivated, (await deactivate.Content.ReadFromJsonAsync<ProblemDetails>())!.Title);
         Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/auth/me")).StatusCode);
     }
 
@@ -134,7 +134,7 @@ public class UserEndpointTests
         var nino = await TestUsers.AddAsync(factory, "Nino", Role.Manager, "1234");
         using var client = await LoggedInAsync(factory, nino, "1234");
 
-        var create = await client.PostAsJsonAsync("/api/users", new { displayName = " NINO ", role = "Staff", pin = "5678" });
+        var create = await client.PostAsJsonAsync("/api/users", new { displayName = " NINO ", pin = "5678" });
 
         await AssertProblemAsync(create, HttpStatusCode.Conflict);
     }
@@ -147,9 +147,8 @@ public class UserEndpointTests
         var support = await TestUsers.AddAsync(factory, "219volts Support", Role.Support, "support-password");
         using var client = await LoggedInAsync(factory, nino, "1234");
 
-        await AssertProblemAsync(await client.PostAsJsonAsync("/api/users", new { displayName = "Gio", role = "Staff", pin = "12a4" }), HttpStatusCode.BadRequest);
-        await AssertProblemAsync(await client.PostAsJsonAsync("/api/users", new { displayName = "  ", role = "Staff", pin = "1234" }), HttpStatusCode.BadRequest);
-        await AssertProblemAsync(await client.PostAsJsonAsync("/api/users", new { displayName = "Gio", role = "Support", pin = "1234" }), HttpStatusCode.BadRequest);
+        await AssertProblemAsync(await client.PostAsJsonAsync("/api/users", new { displayName = "Gio", pin = "12a4" }), HttpStatusCode.BadRequest);
+        await AssertProblemAsync(await client.PostAsJsonAsync("/api/users", new { displayName = "  ", pin = "1234" }), HttpStatusCode.BadRequest);
         await AssertProblemAsync(await client.PutAsJsonAsync($"/api/users/{support}/pin", new { pin = "1234" }), HttpStatusCode.NotFound);
         Assert.DoesNotContain(await client.GetFromJsonAsync<List<UserDto>>("/api/users") ?? [], u => u.Id == support);
     }

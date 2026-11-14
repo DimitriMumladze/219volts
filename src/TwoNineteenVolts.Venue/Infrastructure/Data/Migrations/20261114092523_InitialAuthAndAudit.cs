@@ -20,7 +20,6 @@ namespace TwoNineteenVolts.Venue.Infrastructure.Data.Migrations
                     OccurredAt = table.Column<DateTime>(type: "TEXT", nullable: false),
                     ActorUserId = table.Column<int>(type: "INTEGER", nullable: true),
                     ActorName = table.Column<string>(type: "TEXT", nullable: false),
-                    Source = table.Column<string>(type: "TEXT", nullable: false),
                     Action = table.Column<string>(type: "TEXT", nullable: false),
                     Target = table.Column<string>(type: "TEXT", nullable: true),
                     Details = table.Column<string>(type: "TEXT", nullable: true)
@@ -40,7 +39,6 @@ namespace TwoNineteenVolts.Venue.Infrastructure.Data.Migrations
                     Role = table.Column<string>(type: "TEXT", nullable: false),
                     SecretHash = table.Column<string>(type: "TEXT", nullable: false),
                     IsActive = table.Column<bool>(type: "INTEGER", nullable: false),
-                    RemoteAccessAllowed = table.Column<bool>(type: "INTEGER", nullable: false),
                     CreatedAt = table.Column<DateTime>(type: "TEXT", nullable: false)
                 },
                 constraints: table =>

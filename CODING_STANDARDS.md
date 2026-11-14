@@ -152,7 +152,7 @@ Inside a project, the top folders are the Clean Architecture layers. Inside each
 TwoNineteenVolts.Venue/
   Domain/
     Users/           User.cs, Role.cs
-    Audit/           AuditEntry.cs, AuditSource.cs, AuditActions.cs
+    Audit/           AuditEntry.cs, AuditActions.cs
   Application/
     Auth/            LoginService.cs, LoginThrottle.cs, IPinHasher.cs, PinFormat.cs, ISessionRegistry.cs, ...
     Users/           UserService.cs, UserError.cs
@@ -196,7 +196,7 @@ Code shared by several features goes in `Common/`, and only once a second featur
 |---|---|---|
 | `Domain/<Feature>/` | Entities, facts, enums and constants of the business (see 3.6) | `User`, `AuditEntry`, `Role`, `AuditActions` |
 | `Application/<Feature>/` | Services with the business rules, the interfaces they need, and their result and query types | `UserService`, `SetupService`, `LoginThrottle`, `IPinHasher`, `UserError`, `AuditQuery` |
-| `Infrastructure/<Feature>/` | Everything technical: EF configurations, implementations of Application interfaces, options, background services, and the `<Feature>Module` (see 4.4) | `UserConfiguration`, `PinHasher`, `AuthOptions`, `SessionExpiryService`, `AuthModule` |
+| `Infrastructure/<Feature>/` | Everything technical: EF configurations, implementations of Application interfaces, options, background services, and the `<Feature>Module` (see 4.4) | `UserConfiguration`, `PinHasher`, `AuthOptions`, `AuditCleanupService`, `AuthModule` |
 | `Endpoints/<Feature>/` | The `<Feature>Endpoints` class (see 4.1) and its request and response records (see 4.3) | `UserEndpoints`, `CreateUserRequest`, `UserResponse` |
 | `Commands/<Feature>/` | Command-line commands: prompts, printing and exit codes, and the console they talk to | `SetupCommand`, `ResetSupportCommand`, `IConsole` |
 
@@ -537,7 +537,7 @@ The author may merge their own pull request. Ask for a review when a second opin
 ## 8. Testing
 
 ### 8.1 What must be tested
-- **Business rules get rule tests.** Every rule in a service or domain class has a test that fails when the rule is broken. Example: `Last_manager_cannot_be_deactivated_or_demoted`.
+- **Business rules get rule tests.** Every rule in a service or domain class has a test that fails when the rule is broken. Example: `Manager_cannot_be_deactivated`.
 - **Each endpoint group gets at least one success test and one permission test.** Example: `Manager_can_create_list_and_deactivate` and `Staff_gets_403_on_users`.
 
 ### 8.2 Where tests live and how they are named

@@ -16,9 +16,7 @@ public static class UserEndpoints
         group.MapGet("/", GetUsersAsync);
         group.MapPost("/", CreateAsync);
         group.MapPut("/{id:int}/name", RenameAsync);
-        group.MapPut("/{id:int}/role", ChangeRoleAsync);
         group.MapPut("/{id:int}/pin", SetPinAsync);
-        group.MapPut("/{id:int}/remote-access", SetRemoteAccessAsync);
         group.MapPost("/{id:int}/deactivate", DeactivateAsync);
         group.MapPost("/{id:int}/reactivate", ReactivateAsync);
     }
@@ -35,7 +33,7 @@ public static class UserEndpoints
 
     private static async Task<IResult> CreateAsync(CreateUserRequest request, UserService users)
     {
-        var result = await users.CreateAsync(request.DisplayName, request.Role, request.Pin);
+        var result = await users.CreateAsync(request.DisplayName, request.Pin);
         if (result.IsFailure)
         {
             return ToProblem(result.Error!);
@@ -48,14 +46,8 @@ public static class UserEndpoints
     private static async Task<IResult> RenameAsync(int id, RenameUserRequest request, UserService users) =>
         ToResult(await users.RenameAsync(id, request.DisplayName));
 
-    private static async Task<IResult> ChangeRoleAsync(int id, ChangeRoleRequest request, UserService users) =>
-        ToResult(await users.ChangeRoleAsync(id, request.Role));
-
     private static async Task<IResult> SetPinAsync(int id, SetPinRequest request, UserService users) =>
         ToResult(await users.SetPinAsync(id, request.Pin));
-
-    private static async Task<IResult> SetRemoteAccessAsync(int id, SetRemoteAccessRequest request, UserService users) =>
-        ToResult(await users.SetRemoteAccessAsync(id, request.Allowed));
 
     private static async Task<IResult> DeactivateAsync(int id, UserService users) =>
         ToResult(await users.DeactivateAsync(id));
@@ -71,8 +63,8 @@ public static class UserEndpoints
         var statusCode = error switch
         {
             UserError.NotFound => StatusCodes.Status404NotFound,
-            UserError.DuplicateName or UserError.LastManager => StatusCodes.Status409Conflict,
-            UserError.InvalidPin or UserError.InvalidName or UserError.InvalidRole => StatusCodes.Status400BadRequest,
+            UserError.DuplicateName or UserError.ManagerCannotBeDeactivated => StatusCodes.Status409Conflict,
+            UserError.InvalidPin or UserError.InvalidName => StatusCodes.Status400BadRequest,
             _ => StatusCodes.Status500InternalServerError
         };
 
@@ -80,5 +72,5 @@ public static class UserEndpoints
     }
 
     private static UserResponse ToResponse(User user) =>
-        new(user.Id, user.DisplayName, user.Role, user.IsActive, user.RemoteAccessAllowed, user.CreatedAt);
+        new(user.Id, user.DisplayName, user.Role, user.IsActive, user.CreatedAt);
 }

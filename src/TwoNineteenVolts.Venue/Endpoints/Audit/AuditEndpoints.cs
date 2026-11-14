@@ -34,5 +34,5 @@ public static class AuditEndpoints
     }
 
     private static AuditEntryResponse ToResponse(AuditEntry entry) =>
-        new(entry.Id, entry.OccurredAt, entry.ActorUserId, entry.ActorName, entry.Source, entry.Action, entry.Target, entry.Details);
+        new(entry.Id, entry.OccurredAt, entry.ActorUserId, entry.ActorName, entry.Action, entry.Target, entry.Details);
 }

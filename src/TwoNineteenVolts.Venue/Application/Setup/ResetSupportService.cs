@@ -11,7 +11,7 @@ namespace TwoNineteenVolts.Venue.Application.Setup;
 // Replaces a lost Support password.
 public class ResetSupportService(IVenueDbContext db, IPinHasher hasher, IAuditLog audit)
 {
-    private static readonly AuditActor Actor = new(null, "reset-support", AuditSource.Local);
+    private static readonly AuditActor Actor = new(null, "reset-support");
 
     // On success the value is the new Support password, to be shown exactly once.
     public async Task<Result<string>> ResetAsync()

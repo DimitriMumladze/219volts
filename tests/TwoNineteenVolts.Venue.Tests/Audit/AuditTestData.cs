@@ -13,7 +13,6 @@ public static class AuditTestData
             OccurredAt = occurredAt,
             ActorUserId = actorUserId,
             ActorName = actorUserId is null ? "unknown" : $"user {actorUserId}",
-            Source = AuditSource.Local,
             Action = action,
             Target = null,
             Details = details

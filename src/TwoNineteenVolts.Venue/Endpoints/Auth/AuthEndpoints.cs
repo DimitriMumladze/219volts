@@ -92,8 +92,7 @@ public static class AuthEndpoints
             [
                 new Claim(AuthClaims.UserId, user.Id.ToString()),
                 new Claim(AuthClaims.Name, user.DisplayName),
-                new Claim(AuthClaims.Role, user.Role.ToString()),
-                new Claim(AuthClaims.Source, nameof(AuditSource.Local))
+                new Claim(AuthClaims.Role, user.Role.ToString())
             ],
             CookieAuthenticationDefaults.AuthenticationScheme);
 

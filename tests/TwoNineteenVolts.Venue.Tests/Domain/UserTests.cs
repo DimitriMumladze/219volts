@@ -31,12 +31,4 @@ public class UserTests
         user.Reactivate();
         Assert.True(user.IsActive);
     }
-
-    [Fact]
-    public void New_user_has_remote_access_off()
-    {
-        var user = new User("Nino", Role.Staff, "hash", CreatedAt);
-
-        Assert.False(user.RemoteAccessAllowed);
-    }
 }

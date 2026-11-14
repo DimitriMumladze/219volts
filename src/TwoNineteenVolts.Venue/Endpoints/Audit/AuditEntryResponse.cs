@@ -1,5 +1,3 @@
-using TwoNineteenVolts.Venue.Domain.Audit;
-
 namespace TwoNineteenVolts.Venue.Endpoints.Audit;
 
 public record AuditEntryResponse(
@@ -7,7 +5,6 @@ public record AuditEntryResponse(
     DateTime OccurredAt,
     int? ActorUserId,
     string ActorName,
-    AuditSource Source,
     string Action,
     string? Target,
     string? Details);

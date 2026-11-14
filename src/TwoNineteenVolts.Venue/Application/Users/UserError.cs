@@ -5,8 +5,7 @@ public static class UserError
 {
     public const string NotFound = "User not found";
     public const string DuplicateName = "Another user already has this name";
-    public const string LastManager = "The last active manager cannot be removed or demoted";
+    public const string ManagerCannotBeDeactivated = "The manager cannot be deactivated";
     public const string InvalidPin = "PIN must be exactly 4 digits";
     public const string InvalidName = "Name must not be empty";
-    public const string InvalidRole = "Role must be Staff or Manager";
 }

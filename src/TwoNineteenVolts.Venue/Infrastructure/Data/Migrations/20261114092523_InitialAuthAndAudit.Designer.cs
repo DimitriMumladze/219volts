@@ -11,7 +11,7 @@ using TwoNineteenVolts.Venue.Infrastructure.Data;
 namespace TwoNineteenVolts.Venue.Infrastructure.Data.Migrations
 {
     [DbContext(typeof(VenueDbContext))]
-    [Migration("20261111175519_InitialAuthAndAudit")]
+    [Migration("20261114092523_InitialAuthAndAudit")]
     partial class InitialAuthAndAudit
     {
         /// <inheritdoc />
@@ -43,10 +43,6 @@ namespace TwoNineteenVolts.Venue.Infrastructure.Data.Migrations
                     b.Property<DateTime>("OccurredAt")
                         .HasColumnType("TEXT");
 
-                    b.Property<string>("Source")
-                        .IsRequired()
-                        .HasColumnType("TEXT");
-
                     b.Property<string>("Target")
                         .HasColumnType("TEXT");
 
@@ -72,9 +68,6 @@ namespace TwoNineteenVolts.Venue.Infrastructure.Data.Migrations
                         .UseCollation("NOCASE");
 
                     b.Property<bool>("IsActive")
-                        .HasColumnType("INTEGER");
-
-                    b.Property<bool>("RemoteAccessAllowed")
                         .HasColumnType("INTEGER");
 
                     b.Property<string>("Role")

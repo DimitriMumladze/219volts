@@ -10,8 +10,6 @@ public class AuditEntry
 
     public required string ActorName { get; init; }
 
-    public required AuditSource Source { get; init; }
-
     public required string Action { get; init; }
 
     public required string? Target { get; init; }

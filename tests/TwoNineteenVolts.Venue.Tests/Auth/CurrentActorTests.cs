@@ -1,7 +1,6 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Http;
 using TwoNineteenVolts.Venue.Application.Audit;
-using TwoNineteenVolts.Venue.Domain.Audit;
 using TwoNineteenVolts.Venue.Infrastructure.Auth;
 
 namespace TwoNineteenVolts.Venue.Tests.Auth;
@@ -15,15 +14,14 @@ public class CurrentActorTests
             [
                 new Claim(AuthClaims.UserId, "7"),
                 new Claim(AuthClaims.Name, "Nino"),
-                new Claim(AuthClaims.Role, "Manager"),
-                new Claim(AuthClaims.Source, "Local")
+                new Claim(AuthClaims.Role, "Manager")
             ],
             "test");
         var accessor = new HttpContextAccessor { HttpContext = new DefaultHttpContext { User = new ClaimsPrincipal(identity) } };
 
         var actor = new CurrentActor(accessor).Get();
 
-        Assert.Equal(new AuditActor(7, "Nino", AuditSource.Local), actor);
+        Assert.Equal(new AuditActor(7, "Nino"), actor);
     }
 
     [Fact]

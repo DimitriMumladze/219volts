@@ -13,7 +13,6 @@ public class AuditLog(VenueDbContext db, TimeProvider time) : IAuditLog
             OccurredAt = time.GetUtcNow().UtcDateTime,
             ActorUserId = actor.UserId,
             ActorName = actor.Name,
-            Source = actor.Source,
             Action = action,
             Target = target,
             Details = details

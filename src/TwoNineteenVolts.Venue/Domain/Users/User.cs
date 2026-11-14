@@ -12,17 +12,11 @@ public class User(string displayName, Role role, string secretHash, DateTime cre
 
     public bool IsActive { get; private set; } = true;
 
-    public bool RemoteAccessAllowed { get; private set; }
-
     public DateTime CreatedAt { get; private set; } = createdAt;
 
     public void Rename(string displayName) => DisplayName = CleanName(displayName);
 
-    public void ChangeRole(Role role) => Role = role;
-
     public void SetSecret(string secretHash) => SecretHash = secretHash;
-
-    public void SetRemoteAccess(bool allowed) => RemoteAccessAllowed = allowed;
 
     public void Deactivate() => IsActive = false;
 

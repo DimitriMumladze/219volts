@@ -50,7 +50,7 @@ public class LoginService(IVenueDbContext db, IPinHasher hasher, LoginThrottle t
         }
 
         throttle.RecordSuccess(user.Id);
-        audit.Record(new AuditActor(user.Id, user.DisplayName, AuditSource.Local), AuditActions.Login, $"user:{user.Id}");
+        audit.Record(new AuditActor(user.Id, user.DisplayName), AuditActions.Login, $"user:{user.Id}");
         await db.SaveChangesAsync();
         return LoginResult.Success(user);
     }

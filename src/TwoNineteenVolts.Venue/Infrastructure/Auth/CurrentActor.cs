@@ -1,5 +1,4 @@
 using TwoNineteenVolts.Venue.Application.Audit;
-using TwoNineteenVolts.Venue.Domain.Audit;
 
 namespace TwoNineteenVolts.Venue.Infrastructure.Auth;
 
@@ -15,7 +14,6 @@ public class CurrentActor(IHttpContextAccessor httpContextAccessor) : ICurrentAc
 
         return new AuditActor(
             int.Parse(user.FindFirst(AuthClaims.UserId)!.Value),
-            user.FindFirst(AuthClaims.Name)!.Value,
-            Enum.Parse<AuditSource>(user.FindFirst(AuthClaims.Source)!.Value));
+            user.FindFirst(AuthClaims.Name)!.Value);
     }
 }

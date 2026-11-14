@@ -8,6 +8,7 @@ using TwoNineteenVolts.Venue.Domain.Users;
 
 namespace TwoNineteenVolts.Venue.Application.Users;
 
+// The venue has one Manager, created by the setup command. The Manager creates and manages Staff.
 public class UserService(
     IVenueDbContext db,
     IPinHasher hasher,
@@ -16,17 +17,12 @@ public class UserService(
     ISessionRegistry sessions,
     TimeProvider time)
 {
-    public async Task<Result<User>> CreateAsync(string displayName, Role role, string pin)
+    public async Task<Result<User>> CreateAsync(string displayName, string pin)
     {
         var name = displayName.Trim();
         if (name.Length == 0)
         {
             return Fail(UserError.InvalidName);
-        }
-
-        if (!IsAssignable(role))
-        {
-            return Fail(UserError.InvalidRole);
         }
 
         if (!PinFormat.IsValid(pin))
@@ -39,14 +35,14 @@ public class UserService(
             return Fail(UserError.DuplicateName);
         }
 
-        var user = new User(name, role, hasher.Hash(pin), time.GetUtcNow().UtcDateTime);
+        var user = new User(name, Role.Staff, hasher.Hash(pin), time.GetUtcNow().UtcDateTime);
 
         // The audit entry targets the new id, which SQLite assigns only on insert,
         // so the user and its entry are saved in two steps inside one transaction.
         await using var transaction = await db.Database.BeginTransactionAsync();
         db.Users.Add(user);
         await db.SaveChangesAsync();
-        audit.Record(currentActor.Get(), AuditActions.UserCreated, TargetOf(user), role.ToString());
+        audit.Record(currentActor.Get(), AuditActions.UserCreated, TargetOf(user));
         await db.SaveChangesAsync();
         await transaction.CommitAsync();
 
@@ -81,38 +77,6 @@ public class UserService(
         return result;
     }
 
-    public async Task<Result<User>> ChangeRoleAsync(int id, Role role)
-    {
-        var user = await FindManageableAsync(id);
-        if (user is null)
-        {
-            return Fail(UserError.NotFound);
-        }
-
-        if (!IsAssignable(role))
-        {
-            return Fail(UserError.InvalidRole);
-        }
-
-        if (role == user.Role)
-        {
-            return Result<User>.Ok(user);
-        }
-
-        if (await IsLastActiveManagerAsync(user))
-        {
-            return Fail(UserError.LastManager);
-        }
-
-        var oldRole = user.Role;
-        user.ChangeRole(role);
-        var result = await SaveAsync(user, AuditActions.UserRoleChanged, details: $"{oldRole} → {role}");
-
-        // The sessions carry the old role in their claims, so the user must log in again.
-        sessions.EndSessionsFor(id);
-        return result;
-    }
-
     public async Task<Result<User>> SetPinAsync(int id, string pin)
     {
         var user = await FindManageableAsync(id);
@@ -127,19 +91,11 @@ public class UserService(
         }
 
         user.SetSecret(hasher.Hash(pin));
-        return await SaveAsync(user, AuditActions.UserPinSet);
-    }
+        var result = await SaveAsync(user, AuditActions.UserPinSet);
 
-    public async Task<Result<User>> SetRemoteAccessAsync(int id, bool allowed)
-    {
-        var user = await FindManageableAsync(id);
-        if (user is null)
-        {
-            return Fail(UserError.NotFound);
-        }
-
-        user.SetRemoteAccess(allowed);
-        return await SaveAsync(user, AuditActions.UserRemoteAccessChanged, details: allowed ? "on" : "off");
+        // A PIN is reset when it may have leaked, so whoever is signed in with it must log in again.
+        sessions.EndSessionsFor(id);
+        return result;
     }
 
     public async Task<Result<User>> DeactivateAsync(int id)
@@ -150,9 +106,10 @@ public class UserService(
             return Fail(UserError.NotFound);
         }
 
-        if (await IsLastActiveManagerAsync(user))
+        // Without the Manager nobody could manage users any more.
+        if (user.Role == Role.Manager)
         {
-            return Fail(UserError.LastManager);
+            return Fail(UserError.ManagerCannotBeDeactivated);
         }
 
         user.Deactivate();
@@ -182,20 +139,12 @@ public class UserService(
     private Task<bool> IsNameTakenAsync(string name, int? ignoredUserId) =>
         db.Users.AnyAsync(u => u.DisplayName == name && u.Id != ignoredUserId);
 
-    // Support does not count as a manager.
-    private async Task<bool> IsLastActiveManagerAsync(User user) =>
-        user.IsActive
-        && user.Role == Role.Manager
-        && await db.Users.CountAsync(u => u.IsActive && u.Role == Role.Manager) == 1;
-
     private async Task<Result<User>> SaveAsync(User user, string action, string? details = null)
     {
         audit.Record(currentActor.Get(), action, TargetOf(user), details);
         await db.SaveChangesAsync();
         return Result<User>.Ok(user);
     }
-
-    private static bool IsAssignable(Role role) => role is Role.Staff or Role.Manager;
 
     private static string TargetOf(User user) => $"user:{user.Id}";
 

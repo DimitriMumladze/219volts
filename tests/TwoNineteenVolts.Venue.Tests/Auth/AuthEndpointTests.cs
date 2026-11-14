@@ -167,6 +167,23 @@ public class AuthEndpointTests
     }
 
     [Fact]
+    public async Task Session_idle_longer_than_the_timeout_gets_401_and_activity_keeps_it_alive()
+    {
+        using var factory = new VenueAppFactory();
+        var nino = await TestUsers.AddAsync(factory, "Nino", Role.Manager, "0123");
+        using var client = factory.CreateClient();
+        await client.LoginAsync(nino, "0123");
+
+        factory.Time.Advance(TimeSpan.FromMinutes(50));
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/auth/me")).StatusCode);
+        factory.Time.Advance(TimeSpan.FromMinutes(50));
+        Assert.Equal(HttpStatusCode.OK, (await client.GetAsync("/api/auth/me")).StatusCode);
+        factory.Time.Advance(TimeSpan.FromMinutes(61));
+
+        Assert.Equal(HttpStatusCode.Unauthorized, (await client.GetAsync("/api/auth/me")).StatusCode);
+    }
+
+    [Fact]
     public async Task Login_and_failed_login_are_audited()
     {
         using var factory = new VenueAppFactory();

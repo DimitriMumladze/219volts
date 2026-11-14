@@ -14,7 +14,6 @@ public class AuditEntryTests
             OccurredAt = occurredAt,
             ActorUserId = 7,
             ActorName = "Nino",
-            Source = AuditSource.Local,
             Action = AuditActions.UserRenamed,
             Target = "user:7",
             Details = "Nina"
@@ -23,7 +22,6 @@ public class AuditEntryTests
         Assert.Equal(occurredAt, entry.OccurredAt);
         Assert.Equal(7, entry.ActorUserId);
         Assert.Equal("Nino", entry.ActorName);
-        Assert.Equal(AuditSource.Local, entry.Source);
         Assert.Equal(AuditActions.UserRenamed, entry.Action);
         Assert.Equal("user:7", entry.Target);
         Assert.Equal("Nina", entry.Details);

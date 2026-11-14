@@ -9,7 +9,7 @@ public class AuditEndpointTests
 {
     private static readonly DateTime Nov1 = new(2026, 11, 1, 8, 0, 0, DateTimeKind.Utc);
 
-    private record EntryDto(long Id, DateTime OccurredAt, int? ActorUserId, string ActorName, string Source, string Action, string? Target, string? Details);
+    private record EntryDto(long Id, DateTime OccurredAt, int? ActorUserId, string ActorName, string Action, string? Target, string? Details);
 
     private record PageDto(List<EntryDto> Items, int Page, int PageSize, int TotalCount);
 
