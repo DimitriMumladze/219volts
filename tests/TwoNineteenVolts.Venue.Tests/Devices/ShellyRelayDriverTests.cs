@@ -161,6 +161,23 @@ public class ShellyRelayDriverTests
         Assert.Equal(DeviceError.NoAnswer, result.Error);
     }
 
+    [Theory]
+    [InlineData("[]")]
+    [InlineData("null")]
+    [InlineData("42")]
+    public async Task Reply_that_is_not_an_object_is_an_error_answer(string json)
+    {
+        var handler = Answering(json);
+        var driver = DriverFor(handler);
+        var device = ShellyWith(channelCount: 1);
+
+        var readAll = await driver.ReadAllAsync(device, CancellationToken.None);
+        var read = await driver.ReadAsync(device, 1, CancellationToken.None);
+
+        Assert.Equal(DeviceError.ErrorAnswer, readAll.Error);
+        Assert.Equal(DeviceError.ErrorAnswer, read.Error);
+    }
+
 
     private static ShellyRelayDriver DriverFor(FakeShellyHandler handler)
     {

@@ -264,18 +264,18 @@ Every domain class is one of two kinds. Decide by asking: **does it change after
 - A primary constructor takes everything the object needs to be valid at creation, and nothing else.
 - Every property is `{ get; private set; }`, set from a constructor parameter or given a default.
 - Changes happen only through methods named with business verbs (`Deactivate()`, not `SetIsActive(false)`). A one-line method uses `=>`.
-- The class guards only rules it can check alone (for example: name trimmed, not empty). A guard throws `ArgumentException`, because reaching it means a caller has a bug.
-- Rules that need anything else (other records, the database, the current user, time, audit, sessions) live in the Application service and return `Result<T>` (see 6.1).
+- Entities are plain data holders: they check no rules. Every rule (name trimmed, not empty, unique, in range…) lives in the Application service, which returns `Result<T>` with an error key (see 6.1). One place per rule.
+- An entity may keep derived data in sync itself, such as the upper-case key used to compare names in every language.
 
 ```csharp
 public class User(string displayName, Role role, string secretHash, DateTime createdAt)
 {
     public int Id { get; private set; }
-    public string DisplayName { get; private set; } = CleanName(displayName);
+    public string DisplayName { get; private set; } = displayName;
+    public string DisplayNameKey { get; private set; } = displayName.ToUpperInvariant();
     public bool IsActive { get; private set; } = true;
     ...
 
-    public void Rename(string displayName) => DisplayName = CleanName(displayName);
     public void Deactivate() => IsActive = false;
 }
 ```

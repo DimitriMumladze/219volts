@@ -71,7 +71,7 @@ public class SpotEndpointTests
         await TestSpots.AddAsync(factory, "Tennis 1", null, null);
         await TestSpots.AddAsync(factory, "Old table", null, null, archived: true);
         var statuses = factory.Services.GetRequiredService<DeviceStatuses>();
-        statuses.StoreChannel(panel, 2, true);
+        statuses.StoreChannel(panel, 16, 2, true);
         using var client = await StaffClientAsync(factory);
 
         var spots = (await client.GetFromJsonAsync<List<SpotDto>>("/api/spots"))!;

@@ -113,6 +113,11 @@ public static class SpotEndpoints
 
     private static IResult ToProblem(string error)
     {
+        if (error == SpotError.NameTooLong)
+        {
+            return Problems.Create(error, StatusCodes.Status400BadRequest, textArguments: [SpotService.MaxNameLength]);
+        }
+
         var statusCode = error switch
         {
             SpotError.NotFound => StatusCodes.Status404NotFound,

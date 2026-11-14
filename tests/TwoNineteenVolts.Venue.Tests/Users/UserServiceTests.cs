@@ -237,6 +237,19 @@ public class UserServiceTests
         Assert.Equal(0, count);
     }
 
+    [Theory]
+    [InlineData("Нино", "НИНО")]
+    [InlineData("ნინო", "ᲜᲘᲜᲝ")]
+    public async Task Names_differing_only_in_case_in_any_language_are_duplicates(string existing, string candidate)
+    {
+        using var factory = new VenueAppFactory();
+        await UseServiceAsync(factory, users => users.CreateAsync(existing, "1234"));
+
+        var result = await UseServiceAsync(factory, users => users.CreateAsync(candidate, "5678"));
+
+        Assert.Equal(UserError.DuplicateName, result.Error);
+    }
+
 
     private static async Task<Result<User>> UseServiceAsync(VenueAppFactory factory, Func<UserService, Task<Result<User>>> action)
     {

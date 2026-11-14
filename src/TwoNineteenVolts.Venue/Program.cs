@@ -1,6 +1,7 @@
 using System.Text.Json.Serialization;
 using Scalar.AspNetCore;
 using TwoNineteenVolts.Venue.Commands.Setup;
+using TwoNineteenVolts.Venue.Endpoints;
 using TwoNineteenVolts.Venue.Endpoints.Audit;
 using TwoNineteenVolts.Venue.Endpoints.Auth;
 using TwoNineteenVolts.Venue.Endpoints.Devices;
@@ -17,11 +18,11 @@ using TwoNineteenVolts.Venue.Infrastructure.Users;
 var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddWindowsService();
-builder.Services.AddProblemDetails();
+builder.Services.AddProblemDetails(options => options.CustomizeProblemDetails = Problems.AddDefaultCode);
 builder.Services.AddOpenApi();
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
-    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter());
+    options.SerializerOptions.Converters.Add(new JsonStringEnumConverter(allowIntegerValues: false));
     options.SerializerOptions.RespectNullableAnnotations = true;
     options.SerializerOptions.RespectRequiredConstructorParameters = true;
 });

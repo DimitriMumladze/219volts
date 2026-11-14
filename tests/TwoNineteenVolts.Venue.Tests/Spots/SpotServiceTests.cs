@@ -1,6 +1,8 @@
 using System.Text.RegularExpressions;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Testing;
 using TwoNineteenVolts.Venue.Application.Audit;
 using TwoNineteenVolts.Venue.Application.Devices;
 using TwoNineteenVolts.Venue.Application.Spots;
@@ -450,6 +452,68 @@ public class SpotServiceTests
         Assert.False(result.IsFailure);
         Assert.Contains($"set {panel}/3 on", factory.Waveshare.Calls);
         Assert.True(status.IsOnline);
+    }
+
+    [Fact]
+    public async Task Switch_before_first_check_returns_the_read_back_state()
+    {
+        using var factory = new VenueAppFactory();
+        var panel = await AddPanelAsync(factory);
+        var id = await TestSpots.AddAsync(factory, "Billiard 1", panel, 3);
+
+        var result = await UseServiceAsync(factory, Staff, spots => spots.SwitchAsync(id, true));
+
+        var status = Statuses(factory).Get(panel);
+        var channelThree = status.IsOn(3);
+        var channelFour = status.IsOn(4);
+        Assert.False(result.IsFailure);
+        Assert.True(channelThree);
+        Assert.Null(channelFour);
+    }
+
+    [Fact]
+    public async Task Update_without_changes_records_nothing()
+    {
+        using var factory = new VenueAppFactory();
+        var panel = await AddPanelAsync(factory);
+        var id = await TestSpots.AddAsync(factory, "Billiard 1", panel, 3);
+
+        var result = await UseServiceAsync(factory, Support, spots => spots.UpdateAsync(id, " Billiard 1 ", panel, 3));
+
+        var actions = await AuditActionsAsync(factory);
+        Assert.False(result.IsFailure);
+        Assert.Empty(actions);
+    }
+
+    [Fact]
+    public async Task Successful_switch_is_logged()
+    {
+        using var factory = new VenueAppFactory();
+        var panel = await AddPanelAsync(factory);
+        var id = await TestSpots.AddAsync(factory, "Billiard 1", panel, 3);
+        var logger = new FakeLogger<SpotService>();
+        using var scope = factory.Services.CreateScope();
+        var actor = new FakeCurrentActor(Staff);
+        var codes = new SpotCodeGenerator();
+        var service = ActivatorUtilities.CreateInstance<SpotService>(scope.ServiceProvider, actor, codes, logger);
+
+        await service.SwitchAsync(id, true);
+
+        var levels = logger.Collector.GetSnapshot().Select(r => r.Level);
+        Assert.Equal([LogLevel.Information], levels);
+    }
+
+    [Theory]
+    [InlineData("Бильярд", "БИЛЬЯРД")]
+    [InlineData("ბილიარდი", "ᲑᲘᲚᲘᲐᲠᲓᲘ")]
+    public async Task Names_differing_only_in_case_in_any_language_are_duplicates(string existing, string candidate)
+    {
+        using var factory = new VenueAppFactory();
+        await UseServiceAsync(factory, Support, spots => spots.CreateAsync(existing, null, null));
+
+        var result = await UseServiceAsync(factory, Support, spots => spots.CreateAsync(candidate, null, null));
+
+        Assert.Equal(SpotError.DuplicateName, result.Error);
     }
 
 

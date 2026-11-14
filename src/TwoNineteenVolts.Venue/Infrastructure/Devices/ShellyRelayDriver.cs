@@ -89,6 +89,11 @@ public class ShellyRelayDriver(HttpClient http) : IRelayDriver
             var body = await response.Content.ReadAsStringAsync(cancellationToken);
             using var json = JsonDocument.Parse(body);
             var root = json.RootElement.Clone();
+            if (root.ValueKind != JsonValueKind.Object)
+            {
+                return Result<JsonElement>.Fail(DeviceError.ErrorAnswer);
+            }
+
             return Result<JsonElement>.Ok(root);
         }
         catch (JsonException)

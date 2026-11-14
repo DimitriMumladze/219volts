@@ -17,7 +17,7 @@ public class SpotConfiguration : IEntityTypeConfiguration<Spot>
         builder.Property(s => s.Name)
             .UseCollation(CaseInsensitiveCollation);
 
-        builder.HasIndex(s => s.Name)
+        builder.HasIndex(s => s.NameKey)
             .IsUnique();
 
         builder.HasIndex(s => new { s.DeviceId, s.Channel })

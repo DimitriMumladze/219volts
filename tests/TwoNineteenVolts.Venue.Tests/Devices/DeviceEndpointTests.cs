@@ -126,6 +126,19 @@ public class DeviceEndpointTests
         Assert.Equal(HttpStatusCode.BadRequest, register.StatusCode);
     }
 
+    [Theory]
+    [InlineData(5)]
+    [InlineData(1)]
+    public async Task Kind_as_number_returns_400(int kind)
+    {
+        using var factory = new VenueAppFactory();
+        using var client = await SupportClientAsync(factory);
+
+        var register = await client.PostAsJsonAsync("/api/devices", new { name = "Panel 1", kind, ipAddress = "192.168.10.21", channelCount = 16 });
+
+        Assert.Equal(HttpStatusCode.BadRequest, register.StatusCode);
+    }
+
 
     private static async Task<HttpClient> SupportClientAsync(VenueAppFactory factory)
     {

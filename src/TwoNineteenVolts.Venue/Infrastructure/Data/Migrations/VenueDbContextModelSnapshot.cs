@@ -75,12 +75,16 @@ namespace TwoNineteenVolts.Venue.Infrastructure.Data.Migrations
                         .HasColumnType("TEXT")
                         .UseCollation("NOCASE");
 
+                    b.Property<string>("NameKey")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
                     b.Property<int>("Port")
                         .HasColumnType("INTEGER");
 
                     b.HasKey("Id");
 
-                    b.HasIndex("Name")
+                    b.HasIndex("NameKey")
                         .IsUnique();
 
                     b.HasIndex("IpAddress", "Port")
@@ -116,12 +120,16 @@ namespace TwoNineteenVolts.Venue.Infrastructure.Data.Migrations
                         .HasColumnType("TEXT")
                         .UseCollation("NOCASE");
 
+                    b.Property<string>("NameKey")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
                     b.HasKey("Id");
 
                     b.HasIndex("Code")
                         .IsUnique();
 
-                    b.HasIndex("Name")
+                    b.HasIndex("NameKey")
                         .IsUnique();
 
                     b.HasIndex("DeviceId", "Channel")
@@ -144,6 +152,10 @@ namespace TwoNineteenVolts.Venue.Infrastructure.Data.Migrations
                         .HasColumnType("TEXT")
                         .UseCollation("NOCASE");
 
+                    b.Property<string>("DisplayNameKey")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
                     b.Property<bool>("IsActive")
                         .HasColumnType("INTEGER");
 
@@ -157,7 +169,7 @@ namespace TwoNineteenVolts.Venue.Infrastructure.Data.Migrations
 
                     b.HasKey("Id");
 
-                    b.HasIndex("DisplayName")
+                    b.HasIndex("DisplayNameKey")
                         .IsUnique();
 
                     b.ToTable("Users");

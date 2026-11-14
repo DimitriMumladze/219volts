@@ -8,6 +8,8 @@ public class Spot(string code, string name, int? deviceId, int? channel, DateTim
 
     public string Name { get; private set; } = name;
 
+    public string NameKey { get; private set; } = name.ToUpperInvariant();
+
     public int? DeviceId { get; private set; } = deviceId;
 
     public int? Channel { get; private set; } = channel;
@@ -18,7 +20,11 @@ public class Spot(string code, string name, int? deviceId, int? channel, DateTim
 
     public bool IsMapped => DeviceId is not null;
 
-    public void Rename(string name) => Name = name;
+    public void Rename(string name)
+    {
+        Name = name;
+        NameKey = name.ToUpperInvariant();
+    }
 
     public void MapTo(int deviceId, int channel)
     {

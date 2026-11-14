@@ -50,7 +50,7 @@ public class DeviceStatuses(TimeProvider time, ILogger<DeviceStatuses> logger)
         }
     }
 
-    public void StoreChannel(int deviceId, int channel, bool on)
+    public void StoreChannel(int deviceId, int channelCount, int channel, bool on)
     {
         lock (_lock)
         {
@@ -59,8 +59,9 @@ public class DeviceStatuses(TimeProvider time, ILogger<DeviceStatuses> logger)
                 return;
             }
 
+            entry.Channels ??= new bool?[channelCount];
             var channels = entry.Channels;
-            if (channels is not null && channel >= 1 && channel <= channels.Length)
+            if (channel >= 1 && channel <= channels.Length)
             {
                 channels[channel - 1] = on;
             }
@@ -112,6 +113,7 @@ public class DeviceStatuses(TimeProvider time, ILogger<DeviceStatuses> logger)
         {
             logger.LogWarning("Device {DeviceId} is offline after {Misses} missed checks", deviceId, entry.Misses);
             entry.State = State.Offline;
+            entry.Channels = null;
         }
     }
 

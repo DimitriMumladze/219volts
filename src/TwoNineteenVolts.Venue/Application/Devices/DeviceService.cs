@@ -6,6 +6,7 @@ using TwoNineteenVolts.Venue.Application.Data;
 using TwoNineteenVolts.Venue.Common;
 using TwoNineteenVolts.Venue.Domain.Audit;
 using TwoNineteenVolts.Venue.Domain.Devices;
+using TwoNineteenVolts.Venue.Domain.Spots;
 
 namespace TwoNineteenVolts.Venue.Application.Devices;
 
@@ -19,6 +20,7 @@ public class DeviceService(
 {
     private const int MinPort = 1;
     private const int MaxPort = 65535;
+    private const string None = "none";
 
     public async Task<Result<Device>> RegisterAsync(string name, DeviceKind kind, string ipAddress, int? port, int channelCount)
     {
@@ -74,6 +76,10 @@ public class DeviceService(
             ("ip", device.IpAddress, ipAddress),
             ("port", oldPort, newPort));
         var addressChanged = device.IpAddress != ipAddress || device.Port != port;
+        if (changes.Length == 0)
+        {
+            return Result<Device>.Ok(device);
+        }
 
         device.Update(cleanName, ipAddress, port);
         var actor = currentActor.Get();
@@ -109,8 +115,7 @@ public class DeviceService(
         await using var transaction = await db.Database.BeginTransactionAsync();
         await db.SaveChangesAsync();
         db.Devices.Remove(device);
-        var spotTargets = spots.Select(s => $"spot:{s.Id}");
-        var unmapped = string.Join(", ", spotTargets);
+        var unmapped = UnmappedSpotsOf(spots);
         var actor = currentActor.Get();
         var target = TargetOf(device);
         audit.Record(actor, AuditActions.DeviceDeleted, target, $"unmapped spots: {unmapped}");
@@ -139,7 +144,8 @@ public class DeviceService(
             return DeviceError.InvalidPort;
         }
 
-        if (await db.Devices.AnyAsync(d => d.Name == name && d.Id != ignoredDeviceId))
+        var key = name.ToUpperInvariant();
+        if (await db.Devices.AnyAsync(d => d.NameKey == key && d.Id != ignoredDeviceId))
         {
             return DeviceError.DuplicateName;
         }
@@ -164,6 +170,17 @@ public class DeviceService(
             .Select(f => $"{f.Field}: {f.Old} → {f.New}");
 
         return string.Join("; ", changed);
+    }
+
+    private static string UnmappedSpotsOf(List<Spot> spots)
+    {
+        if (spots.Count == 0)
+        {
+            return None;
+        }
+
+        var spotTargets = spots.Select(s => AuditTarget.Spot(s.Id));
+        return string.Join(", ", spotTargets);
     }
 
     private static string TargetOf(Device device) => AuditTarget.Device(device.Id);

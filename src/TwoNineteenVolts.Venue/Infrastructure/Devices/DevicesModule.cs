@@ -7,7 +7,9 @@ public static class DevicesModule
     public static IServiceCollection AddDevices(this IServiceCollection services)
     {
         services.AddOptions<DevicesOptions>()
-            .BindConfiguration(DevicesOptions.SectionName);
+            .BindConfiguration(DevicesOptions.SectionName)
+            .Validate(options => options.CheckInterval > TimeSpan.Zero, "Devices:CheckInterval must be greater than zero")
+            .ValidateOnStart();
 
         services.AddSingleton<DeviceStatuses>();
         services.AddScoped<RelayDrivers>();

@@ -13,7 +13,7 @@ public class DeviceConfiguration : IEntityTypeConfiguration<Device>
         builder.Property(d => d.Name)
             .UseCollation(CaseInsensitiveCollation);
 
-        builder.HasIndex(d => d.Name)
+        builder.HasIndex(d => d.NameKey)
             .IsUnique();
 
         builder.HasIndex(d => new { d.IpAddress, d.Port })

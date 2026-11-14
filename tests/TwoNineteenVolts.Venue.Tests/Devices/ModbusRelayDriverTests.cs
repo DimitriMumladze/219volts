@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using FluentModbus;
@@ -178,6 +179,72 @@ public class ModbusRelayDriverTests
         }
     }
 
+    [Fact]
+    public async Task Unreachable_boards_do_not_wait_for_each_other()
+    {
+        var firstPort = FreePort();
+        var secondPort = FreePort();
+        var driver = new ModbusRelayDriver();
+        var first = BoardOn(firstPort, channelCount: 16);
+        var second = BoardOn(secondPort, channelCount: 16);
+        var stopwatch = Stopwatch.StartNew();
+
+        var firstCall = driver.ReadAllAsync(first, CancellationToken.None);
+        var secondCall = driver.ReadAllAsync(second, CancellationToken.None);
+        await Task.WhenAll(firstCall, secondCall);
+
+        var elapsedSeconds = stopwatch.Elapsed.TotalSeconds;
+        Assert.True(elapsedSeconds < 3.5, $"took {elapsedSeconds:0.0} s");
+    }
+
+    [Fact]
+    public async Task Board_that_drops_the_connection_is_no_answer()
+    {
+        var rudeBoard = new TcpListener(IPAddress.Loopback, 0);
+        rudeBoard.Start();
+        var endpoint = (IPEndPoint)rudeBoard.LocalEndpoint;
+        var closing = CloseEachConnectionAsync(rudeBoard);
+        var driver = new ModbusRelayDriver();
+        var device = BoardOn(endpoint.Port, channelCount: 16);
+
+        try
+        {
+            var result = await driver.ReadAllAsync(device, CancellationToken.None);
+
+            Assert.Equal(DeviceError.NoAnswer, result.Error);
+        }
+        finally
+        {
+            rudeBoard.Stop();
+            await closing;
+        }
+    }
+
+
+    private static async Task CloseEachConnectionAsync(TcpListener listener)
+    {
+        try
+        {
+            while (true)
+            {
+                using var connection = await listener.AcceptTcpClientAsync();
+                var stream = connection.GetStream();
+                var request = new byte[64];
+                var requestLength = await stream.ReadAsync(request);
+                connection.Client.Shutdown(SocketShutdown.Send);
+                var remainingLength = await stream.ReadAsync(request);
+            }
+        }
+        catch (SocketException)
+        {
+        }
+        catch (ObjectDisposedException)
+        {
+        }
+        catch (InvalidOperationException)
+        {
+        }
+    }
 
     private static ModbusTcpServer StartServer(out int port)
     {
@@ -206,6 +273,9 @@ public class ModbusRelayDriverTests
         {
         }
         catch (ObjectDisposedException)
+        {
+        }
+        catch (InvalidOperationException)
         {
         }
     }

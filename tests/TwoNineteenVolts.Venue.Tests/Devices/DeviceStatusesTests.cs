@@ -103,6 +103,38 @@ public class DeviceStatusesTests
     }
 
     [Fact]
+    public void Single_channel_is_known_before_the_first_full_read()
+    {
+        var statuses = NewStatuses();
+        statuses.RecordOutcome(DeviceId, error: null);
+
+        statuses.StoreChannel(DeviceId, channelCount: 4, channel: 2, on: true);
+
+        var status = statuses.Get(DeviceId);
+        var channelOne = status.IsOn(1);
+        var channelTwo = status.IsOn(2);
+        Assert.Null(channelOne);
+        Assert.True(channelTwo);
+        Assert.Equal(4, status.Channels!.Count);
+    }
+
+    [Fact]
+    public void Going_offline_forgets_channel_states()
+    {
+        var statuses = NewStatuses();
+        statuses.RecordOutcome(DeviceId, error: null);
+        statuses.StoreChannels(DeviceId, [true, false]);
+
+        GoOffline(statuses);
+        statuses.RecordOutcome(DeviceId, error: null);
+
+        var status = statuses.Get(DeviceId);
+        var channelOne = status.IsOn(1);
+        Assert.True(status.IsOnline);
+        Assert.Null(channelOne);
+    }
+
+    [Fact]
     public void Forgotten_channel_is_unknown_and_others_stay_known()
     {
         var statuses = NewStatuses();
@@ -127,7 +159,7 @@ public class DeviceStatusesTests
         statuses.RecordOutcome(DeviceId, error: null);
 
         statuses.StoreChannels(DeviceId, [true, false, false]);
-        statuses.StoreChannel(DeviceId, channel: 3, on: true);
+        statuses.StoreChannel(DeviceId, channelCount: 3, channel: 3, on: true);
 
         var status = statuses.Get(DeviceId);
         var channelOne = status.IsOn(1);

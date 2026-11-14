@@ -105,6 +105,10 @@ public class SpotService(
             ("name", spot.Name, cleanName),
             ("device", oldDevice, newDevice),
             ("channel", oldChannel, newChannel));
+        if (changes.Length == 0)
+        {
+            return Result<Spot>.Ok(spot);
+        }
 
         spot.Rename(cleanName);
         if (deviceId is int mappedDeviceId && channel is int mappedChannel)
@@ -187,7 +191,7 @@ public class SpotService(
         }
 
         var target = AuditTarget.Spot(spot.Id);
-        statuses.StoreChannel(deviceId, channel, read.Value);
+        statuses.StoreChannel(deviceId, device.ChannelCount, channel, read.Value);
         if (read.Value != on)
         {
             logger.LogWarning("Switching spot {SpotId} failed: the relay reads {State}", spot.Id, read.Value);
@@ -199,6 +203,7 @@ public class SpotService(
         var action = on ? AuditActions.SpotSwitchedOn : AuditActions.SpotSwitchedOff;
         audit.Record(actor, action, target);
         await db.SaveChangesAsync();
+        logger.LogInformation("Spot {SpotId} switched {State} by {Actor}", spot.Id, on ? "on" : "off", actor.Name);
 
         return Result<Spot>.Ok(spot);
     }
@@ -325,7 +330,8 @@ public class SpotService(
             }
         }
 
-        if (await db.Spots.AnyAsync(s => s.Name == name && s.Id != ignoredSpotId))
+        var key = name.ToUpperInvariant();
+        if (await db.Spots.AnyAsync(s => s.NameKey == key && s.Id != ignoredSpotId))
         {
             return SpotError.DuplicateName;
         }

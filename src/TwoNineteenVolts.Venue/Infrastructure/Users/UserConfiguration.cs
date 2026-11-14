@@ -13,7 +13,7 @@ public class UserConfiguration : IEntityTypeConfiguration<User>
         builder.Property(u => u.DisplayName)
             .UseCollation(CaseInsensitiveCollation);
 
-        builder.HasIndex(u => u.DisplayName)
+        builder.HasIndex(u => u.DisplayNameKey)
             .IsUnique();
 
         builder.Property(u => u.Role)

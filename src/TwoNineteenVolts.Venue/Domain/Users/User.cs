@@ -6,6 +6,8 @@ public class User(string displayName, Role role, string secretHash, DateTime cre
 
     public string DisplayName { get; private set; } = displayName;
 
+    public string DisplayNameKey { get; private set; } = displayName.ToUpperInvariant();
+
     public Role Role { get; private set; } = role;
 
     public string SecretHash { get; private set; } = secretHash;
@@ -14,7 +16,11 @@ public class User(string displayName, Role role, string secretHash, DateTime cre
 
     public DateTime CreatedAt { get; private set; } = createdAt;
 
-    public void Rename(string displayName) => DisplayName = displayName;
+    public void Rename(string displayName)
+    {
+        DisplayName = displayName;
+        DisplayNameKey = displayName.ToUpperInvariant();
+    }
 
     public void SetSecret(string secretHash) => SecretHash = secretHash;
 

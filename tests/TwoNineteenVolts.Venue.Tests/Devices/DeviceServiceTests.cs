@@ -256,6 +256,46 @@ public class DeviceServiceTests
         Assert.Equal($"unmapped spots: spot:{billiard}, spot:{tennis}", entry.Details);
     }
 
+    [Fact]
+    public async Task Update_without_changes_records_nothing()
+    {
+        using var factory = new VenueAppFactory();
+        var id = await TestDevices.AddAsync(factory, "Panel 1", Waveshare, "192.168.1.20", 502, 16);
+
+        var result = await UseServiceAsync(factory, devices => devices.UpdateAsync(id, " Panel 1 ", "192.168.1.20", 502));
+
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<VenueDbContext>();
+        var auditCount = await db.AuditEntries.CountAsync();
+        Assert.False(result.IsFailure);
+        Assert.Equal(0, auditCount);
+    }
+
+    [Fact]
+    public async Task Delete_without_spots_says_none()
+    {
+        using var factory = new VenueAppFactory();
+        var id = await TestDevices.AddAsync(factory, "Panel 1", Waveshare, "192.168.1.20", 502, 16);
+
+        await UseServiceAsync(factory, devices => devices.DeleteAsync(id));
+
+        var entry = await SingleAuditAsync(factory, AuditActions.DeviceDeleted);
+        Assert.Equal("unmapped spots: none", entry.Details);
+    }
+
+    [Theory]
+    [InlineData("Панель", "ПАНЕЛЬ")]
+    [InlineData("პანელი", "ᲞᲐᲜᲔᲚᲘ")]
+    public async Task Names_differing_only_in_case_in_any_language_are_duplicates(string existing, string candidate)
+    {
+        using var factory = new VenueAppFactory();
+        await UseServiceAsync(factory, devices => devices.RegisterAsync(existing, Waveshare, "192.168.1.20", 502, 16));
+
+        var result = await UseServiceAsync(factory, devices => devices.RegisterAsync(candidate, Waveshare, "192.168.1.21", 502, 16));
+
+        Assert.Equal(DeviceError.DuplicateName, result.Error);
+    }
+
 
     private static async Task<Result<Device>> UseServiceAsync(VenueAppFactory factory, Func<DeviceService, Task<Result<Device>>> action)
     {

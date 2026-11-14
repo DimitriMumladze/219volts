@@ -69,7 +69,7 @@ public class ModbusRelayDriver : IRelayDriver
                 ReadTimeout = TimeoutMilliseconds,
                 WriteTimeout = TimeoutMilliseconds
             };
-            var connected = Connect(client, device);
+            var connected = await Task.Run(() => Connect(client, device), cancellationToken);
             if (!connected)
             {
                 return Result<T>.Fail(DeviceError.NoAnswer);
@@ -81,7 +81,7 @@ public class ModbusRelayDriver : IRelayDriver
         {
             return Result<T>.Fail(DeviceError.ErrorAnswer);
         }
-        catch (Exception exception) when (exception is SocketException or IOException or TimeoutException or OperationCanceledException)
+        catch (Exception)
         {
             return Result<T>.Fail(DeviceError.NoAnswer);
         }

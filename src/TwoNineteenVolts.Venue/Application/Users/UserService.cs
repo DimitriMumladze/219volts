@@ -134,8 +134,11 @@ public class UserService(
     private Task<User?> FindManageableAsync(int id) =>
         db.Users.SingleOrDefaultAsync(u => u.Id == id && u.Role != Role.Support);
 
-    private Task<bool> IsNameTakenAsync(string name, int? ignoredUserId) =>
-        db.Users.AnyAsync(u => u.DisplayName == name && u.Id != ignoredUserId);
+    private Task<bool> IsNameTakenAsync(string name, int? ignoredUserId)
+    {
+        var key = name.ToUpperInvariant();
+        return db.Users.AnyAsync(u => u.DisplayNameKey == key && u.Id != ignoredUserId);
+    }
 
     private async Task<Result<User>> SaveAsync(User user, string action, string? details = null)
     {

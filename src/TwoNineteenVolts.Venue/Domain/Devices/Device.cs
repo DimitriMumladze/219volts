@@ -6,6 +6,8 @@ public class Device(string name, DeviceKind kind, string ipAddress, int port, in
 
     public string Name { get; private set; } = name;
 
+    public string NameKey { get; private set; } = name.ToUpperInvariant();
+
     public DeviceKind Kind { get; private set; } = kind;
 
     public string IpAddress { get; private set; } = ipAddress;
@@ -19,6 +21,7 @@ public class Device(string name, DeviceKind kind, string ipAddress, int port, in
     public void Update(string name, string ipAddress, int port)
     {
         Name = name;
+        NameKey = name.ToUpperInvariant();
         IpAddress = ipAddress;
         Port = port;
     }
