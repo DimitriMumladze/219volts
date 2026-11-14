@@ -30,6 +30,35 @@
     <value>Name must not be empty</value>
   </data>
 
+  <!-- Devices -->
+  <data name="DeviceNotFound" xml:space="preserve">
+    <value>Device not found</value>
+  </data>
+  <data name="DeviceInvalidName" xml:space="preserve">
+    <value>Name must not be empty</value>
+  </data>
+  <data name="DeviceDuplicateName" xml:space="preserve">
+    <value>Another device already has this name</value>
+  </data>
+  <data name="DeviceInvalidIpAddress" xml:space="preserve">
+    <value>The IP address must be an IPv4 address, e.g. 192.168.1.20</value>
+  </data>
+  <data name="DeviceInvalidPort" xml:space="preserve">
+    <value>The port must be between 1 and 65535</value>
+  </data>
+  <data name="DeviceInvalidChannelCount" xml:space="preserve">
+    <value>This channel count is not possible for this kind of device</value>
+  </data>
+  <data name="DeviceDuplicateAddress" xml:space="preserve">
+    <value>Another device already uses this IP address and port</value>
+  </data>
+  <data name="DeviceNoAnswer" xml:space="preserve">
+    <value>The device did not answer</value>
+  </data>
+  <data name="DeviceErrorAnswer" xml:space="preserve">
+    <value>The device answered with an error</value>
+  </data>
+
   <!-- Auth -->
   <data name="AuthWrongPin" xml:space="preserve">
     <value>Wrong PIN</value>

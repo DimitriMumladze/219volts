@@ -3,10 +3,12 @@ using Scalar.AspNetCore;
 using TwoNineteenVolts.Venue.Commands.Setup;
 using TwoNineteenVolts.Venue.Endpoints.Audit;
 using TwoNineteenVolts.Venue.Endpoints.Auth;
+using TwoNineteenVolts.Venue.Endpoints.Devices;
 using TwoNineteenVolts.Venue.Endpoints.Users;
 using TwoNineteenVolts.Venue.Infrastructure.Audit;
 using TwoNineteenVolts.Venue.Infrastructure.Auth;
 using TwoNineteenVolts.Venue.Infrastructure.Data;
+using TwoNineteenVolts.Venue.Infrastructure.Devices;
 using TwoNineteenVolts.Venue.Infrastructure.Setup;
 using TwoNineteenVolts.Venue.Infrastructure.Users;
 
@@ -30,6 +32,7 @@ builder.Services.AddAudit();
 builder.Services.AddAuth();
 builder.Services.AddUsers();
 builder.Services.AddSetup();
+builder.Services.AddDevices();
 
 var app = builder.Build();
 
@@ -66,6 +69,7 @@ if (app.Environment.IsDevelopment())
 app.MapAuthEndpoints();
 app.MapUserEndpoints();
 app.MapAuditEndpoints();
+app.MapDeviceEndpoints();
 
 await app.RunAsync();
 return 0;

@@ -2,6 +2,7 @@ using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Localization;
 using TwoNineteenVolts.Venue.Application.Auth;
+using TwoNineteenVolts.Venue.Application.Devices;
 using TwoNineteenVolts.Venue.Application.Setup;
 using TwoNineteenVolts.Venue.Application.Users;
 using TwoNineteenVolts.Venue.Commands.Setup;
@@ -17,7 +18,8 @@ public class MessagesTests
         typeof(UserError),
         typeof(SetupError),
         typeof(AuthError),
-        typeof(SetupMessages)
+        typeof(SetupMessages),
+        typeof(DeviceError)
     ];
 
     [Fact]

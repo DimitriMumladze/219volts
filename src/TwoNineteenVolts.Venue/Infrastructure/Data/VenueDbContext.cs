@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using TwoNineteenVolts.Venue.Application.Data;
 using TwoNineteenVolts.Venue.Domain.Audit;
+using TwoNineteenVolts.Venue.Domain.Devices;
+using TwoNineteenVolts.Venue.Domain.Spots;
 using TwoNineteenVolts.Venue.Domain.Users;
 
 namespace TwoNineteenVolts.Venue.Infrastructure.Data;
@@ -10,6 +12,10 @@ public class VenueDbContext(DbContextOptions<VenueDbContext> options) : DbContex
     public DbSet<User> Users => Set<User>();
 
     public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
+
+    public DbSet<Device> Devices => Set<Device>();
+
+    public DbSet<Spot> Spots => Set<Spot>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
