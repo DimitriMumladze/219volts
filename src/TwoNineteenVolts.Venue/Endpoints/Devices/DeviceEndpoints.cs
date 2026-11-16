@@ -78,7 +78,7 @@ public static class DeviceEndpoints
             DeviceError.NotFound => StatusCodes.Status404NotFound,
             DeviceError.InvalidName or DeviceError.InvalidIpAddress or DeviceError.InvalidPort or DeviceError.InvalidChannelCount
                 => StatusCodes.Status400BadRequest,
-            DeviceError.DuplicateName or DeviceError.DuplicateAddress => StatusCodes.Status409Conflict,
+            DeviceError.DuplicateName or DeviceError.DuplicateAddress or DeviceError.SessionRunning => StatusCodes.Status409Conflict,
             _ => StatusCodes.Status500InternalServerError
         };
 

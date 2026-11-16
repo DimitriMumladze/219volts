@@ -29,4 +29,11 @@ public static class AuditActions
     public const string GroupRenamed = "group.renamed";
     public const string GroupRateChanged = "group.rate_changed";
     public const string GroupArchived = "group.archived";
+
+    public const string SessionStarted = "session.started";
+    public const string SessionExtended = "session.extended";
+    public const string SessionStopped = "session.stopped";
+    public const string SessionEnded = "session.ended";
+    public const string SessionRestored = "session.restored";
+    public const string SessionSwitchOffFailed = "session.switch_off_failed";
 }

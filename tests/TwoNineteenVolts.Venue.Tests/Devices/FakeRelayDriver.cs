@@ -23,6 +23,8 @@ public class FakeRelayDriver(DeviceKind kind) : IRelayDriver
 
     public TaskCompletionSource? Gate { get; set; }
 
+    public TaskCompletionSource? SetGate { get; set; }
+
     public List<string> Calls { get; } = [];
 
     public void SetChannels(Device device, params bool[] states)
@@ -71,13 +73,17 @@ public class FakeRelayDriver(DeviceKind kind) : IRelayDriver
         return Task.FromResult(success);
     }
 
-    public Task<Result<bool>> SetAsync(Device device, int channel, bool on, CancellationToken cancellationToken)
+    public async Task<Result<bool>> SetAsync(Device device, int channel, bool on, CancellationToken cancellationToken)
     {
         Record($"set {device.Id}/{channel} {(on ? "on" : "off")}");
+        if (SetGate is not null)
+        {
+            await SetGate.Task;
+        }
+
         if (Error is not null)
         {
-            var failure = Result<bool>.Fail(Error);
-            return Task.FromResult(failure);
+            return Result<bool>.Fail(Error);
         }
 
         if (!IgnoreSet)
@@ -88,8 +94,7 @@ public class FakeRelayDriver(DeviceKind kind) : IRelayDriver
             }
         }
 
-        var success = Result<bool>.Ok(on);
-        return Task.FromResult(success);
+        return Result<bool>.Ok(on);
     }
 
 

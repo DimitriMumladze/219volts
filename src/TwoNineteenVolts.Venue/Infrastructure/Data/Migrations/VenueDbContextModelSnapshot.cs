@@ -125,6 +125,92 @@ namespace TwoNineteenVolts.Venue.Infrastructure.Data.Migrations
                     b.ToTable("Groups");
                 });
 
+            modelBuilder.Entity("TwoNineteenVolts.Venue.Domain.Sessions.Session", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("EndReason")
+                        .HasColumnType("TEXT");
+
+                    b.Property<DateTime?>("EndedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("EndedByName")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("EndedByUserId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("EndsAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("SpotId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("StartedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<string>("StartedByName")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int?>("StartedByUserId")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("EndsAt");
+
+                    b.HasIndex("SpotId")
+                        .IsUnique()
+                        .HasFilter("\"EndedAt\" IS NULL");
+
+                    b.ToTable("Sessions");
+                });
+
+            modelBuilder.Entity("TwoNineteenVolts.Venue.Domain.Sessions.SessionCharge", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("At")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("ChargedTetri")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<long>("ComputedTetri")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("Minutes")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("SessionId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int?>("UserId")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("UserName")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("At");
+
+                    b.HasIndex("SessionId");
+
+                    b.ToTable("SessionCharges");
+                });
+
             modelBuilder.Entity("TwoNineteenVolts.Venue.Domain.Spots.Spot", b =>
                 {
                     b.Property<int>("Id")
@@ -210,6 +296,24 @@ namespace TwoNineteenVolts.Venue.Infrastructure.Data.Migrations
                         .IsUnique();
 
                     b.ToTable("Users");
+                });
+
+            modelBuilder.Entity("TwoNineteenVolts.Venue.Domain.Sessions.Session", b =>
+                {
+                    b.HasOne("TwoNineteenVolts.Venue.Domain.Spots.Spot", null)
+                        .WithMany()
+                        .HasForeignKey("SpotId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+                });
+
+            modelBuilder.Entity("TwoNineteenVolts.Venue.Domain.Sessions.SessionCharge", b =>
+                {
+                    b.HasOne("TwoNineteenVolts.Venue.Domain.Sessions.Session", null)
+                        .WithMany()
+                        .HasForeignKey("SessionId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 
             modelBuilder.Entity("TwoNineteenVolts.Venue.Domain.Spots.Spot", b =>

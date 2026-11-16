@@ -22,6 +22,8 @@ public class VenueAppFactory : WebApplicationFactory<Program>
 
     public FakeRelayDriver Waveshare { get; } = new(DeviceKind.WaveshareModbusTcp);
 
+    public Action<IServiceCollection>? ExtraServices { get; set; }
+
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
         builder.UseEnvironment("Development");
@@ -41,6 +43,7 @@ public class VenueAppFactory : WebApplicationFactory<Program>
             services.RemoveAll<IRelayDriver>();
             services.AddSingleton<IRelayDriver>(Shelly);
             services.AddSingleton<IRelayDriver>(Waveshare);
+            ExtraServices?.Invoke(services);
         });
     }
 

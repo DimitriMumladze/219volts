@@ -4,9 +4,11 @@ using TwoNineteenVolts.Venue.Application.Audit;
 using TwoNineteenVolts.Venue.Application.Data;
 using TwoNineteenVolts.Venue.Application.Devices;
 using TwoNineteenVolts.Venue.Application.Events;
+using TwoNineteenVolts.Venue.Application.Sessions;
 using TwoNineteenVolts.Venue.Common;
 using TwoNineteenVolts.Venue.Domain.Audit;
 using TwoNineteenVolts.Venue.Domain.Devices;
+using TwoNineteenVolts.Venue.Domain.Sessions;
 using TwoNineteenVolts.Venue.Domain.Spots;
 using TwoNineteenVolts.Venue.Domain.Users;
 
@@ -16,6 +18,10 @@ public class SpotService(
     IVenueDbContext db,
     BoardGate gate,
     ISpotCodeGenerator codes,
+    VisibleSpots visibleSpots,
+    SwitchFailures failures,
+    SessionService sessions,
+    IRunningSessions runningSessions,
     IAuditLog audit,
     ICurrentActor currentActor,
     IEventQueue events,
@@ -25,9 +31,6 @@ public class SpotService(
     public const int MaxNameLength = 30;
 
     private const string None = "none";
-    private const string NoAnswerReason = "no answer";
-    private const string ErrorAnswerReason = "error answer";
-    private const string MismatchReason = "mismatch";
 
     public async Task<Result<Spot>> CreateAsync(string name, int groupId, int? deviceId, int? channel)
     {
@@ -75,7 +78,7 @@ public class SpotService(
     public async Task<Result<Spot>> UpdateAsync(int id, string name, int groupId, int? deviceId, int? channel)
     {
         var actor = currentActor.Get();
-        var spot = await FindVisibleAsync(id, actor);
+        var spot = await visibleSpots.FindAsync(id, actor);
         if (spot is null)
         {
             return Fail(SpotError.NotFound);
@@ -91,6 +94,11 @@ public class SpotService(
         if ((mappingChanged || groupChanged) && actor.Role != Role.Support)
         {
             return Fail(SpotError.OnlyNameChangeAllowed);
+        }
+
+        if (mappingChanged && await runningSessions.OnSpotAsync(id))
+        {
+            return Fail(SpotError.SessionRunning);
         }
 
         var cleanName = name.Trim();
@@ -155,7 +163,7 @@ public class SpotService(
     public async Task<Result<Spot>> NewCodeAsync(int id)
     {
         var actor = currentActor.Get();
-        var spot = await FindVisibleAsync(id, actor);
+        var spot = await visibleSpots.FindAsync(id, actor);
         if (spot is null)
         {
             return Fail(SpotError.NotFound);
@@ -185,7 +193,7 @@ public class SpotService(
     public async Task<Result<Spot>> SwitchAsync(int id, bool on)
     {
         var actor = currentActor.Get();
-        var spot = await FindVisibleAsync(id, actor);
+        var spot = await visibleSpots.FindAsync(id, actor);
         if (spot is null)
         {
             return Fail(SpotError.NotFound);
@@ -202,20 +210,20 @@ public class SpotService(
         }
 
         var device = await db.Devices.SingleAsync(d => d.Id == deviceId);
-        var switched = await gate.RunAsync(device, board => board.SwitchAsync(channel, on));
+        var switched = await gate.RunAsync(device, board => SwitchInsideGateAsync(board, spot.Id, channel, on, actor));
         if (switched.IsFailure)
         {
-            return await FailSwitchAsync(spot, actor, switched.Error);
+            await failures.RecordAsync(spot.Id, actor, switched.Error);
+            return Fail(switched.Error);
+        }
+
+        if (switched.Value != on)
+        {
+            await failures.RecordAsync(spot.Id, actor, SpotError.StateMismatch);
+            return Fail(SpotError.StateMismatch);
         }
 
         var target = AuditTarget.Spot(spot.Id);
-        if (switched.Value != on)
-        {
-            logger.LogWarning("Switching spot {SpotId} failed: the relay reads {State}", spot.Id, switched.Value);
-            audit.Record(actor, AuditActions.SpotSwitchFailed, target, MismatchReason);
-            await db.SaveChangesAsync();
-            return Fail(SpotError.StateMismatch);
-        }
 
         var action = on ? AuditActions.SpotSwitchedOn : AuditActions.SpotSwitchedOff;
         audit.Record(actor, action, target);
@@ -229,7 +237,7 @@ public class SpotService(
     public async Task<Result<Spot>> ArchiveAsync(int id)
     {
         var actor = currentActor.Get();
-        var spot = await FindVisibleAsync(id, actor);
+        var spot = await visibleSpots.FindAsync(id, actor);
         if (spot is null)
         {
             return Fail(SpotError.NotFound);
@@ -238,6 +246,11 @@ public class SpotService(
         if (spot.IsArchived)
         {
             return Fail(SpotError.Archived);
+        }
+
+        if (await runningSessions.OnSpotAsync(id))
+        {
+            return Fail(SpotError.SessionRunning);
         }
 
         spot.Archive();
@@ -250,43 +263,16 @@ public class SpotService(
     }
 
 
-    private async Task<Spot?> FindVisibleAsync(int id, AuditActor actor)
+    private async Task<Result<bool>> SwitchInsideGateAsync(Board board, int spotId, int channel, bool on, AuditActor actor)
     {
-        var spot = await db.Spots.SingleOrDefaultAsync(s => s.Id == id);
-        if (spot is null)
+        var switched = await board.SwitchAsync(channel, on);
+        if (switched.IsFailure || switched.Value != on || on)
         {
-            return null;
+            return switched;
         }
 
-        var hidden = !spot.IsMapped || spot.IsArchived;
-        if (hidden && actor.Role != Role.Support)
-        {
-            return null;
-        }
-
-        return spot;
-    }
-
-    private async Task<Result<Spot>> FailSwitchAsync(Spot spot, AuditActor actor, string error)
-    {
-        var reason = ReasonFor(error);
-        logger.LogWarning("Switching spot {SpotId} failed: {Reason}", spot.Id, reason);
-
-        var target = AuditTarget.Spot(spot.Id);
-        audit.Record(actor, AuditActions.SpotSwitchFailed, target, reason);
-        await db.SaveChangesAsync();
-
-        return Fail(error);
-    }
-
-    private static string ReasonFor(string error)
-    {
-        if (error == DeviceError.NoAnswer)
-        {
-            return NoAnswerReason;
-        }
-
-        return ErrorAnswerReason;
+        await sessions.EndRunningInsideGateAsync(spotId, SessionEndReason.ManualOff, actor);
+        return switched;
     }
 
     private static string? ValidateInput(string name, int? deviceId, int? channel)

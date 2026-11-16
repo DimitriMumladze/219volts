@@ -13,4 +13,6 @@ public static class DeviceError
     public const string NoAnswer = "DeviceNoAnswer";
 
     public const string ErrorAnswer = "DeviceErrorAnswer";
+
+    public const string SessionRunning = "DeviceSessionRunning";
 }

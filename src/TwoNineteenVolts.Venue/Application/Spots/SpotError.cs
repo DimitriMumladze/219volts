@@ -17,4 +17,5 @@ public static class SpotError
     public const string StateMismatch = "SpotStateMismatch";
     public const string UnknownGroup = "SpotUnknownGroup";
     public const string GroupArchived = "SpotGroupArchived";
+    public const string SessionRunning = "SpotSessionRunning";
 }

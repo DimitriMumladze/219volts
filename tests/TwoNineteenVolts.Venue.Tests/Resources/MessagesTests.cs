@@ -4,6 +4,7 @@ using Microsoft.Extensions.Localization;
 using TwoNineteenVolts.Venue.Application.Auth;
 using TwoNineteenVolts.Venue.Application.Devices;
 using TwoNineteenVolts.Venue.Application.Groups;
+using TwoNineteenVolts.Venue.Application.Sessions;
 using TwoNineteenVolts.Venue.Application.Setup;
 using TwoNineteenVolts.Venue.Application.Spots;
 using TwoNineteenVolts.Venue.Application.Users;
@@ -22,7 +23,8 @@ public class MessagesTests
         typeof(SetupMessages),
         typeof(DeviceError),
         typeof(SpotError),
-        typeof(GroupError)
+        typeof(GroupError),
+        typeof(SessionError)
     ];
 
     [Fact]

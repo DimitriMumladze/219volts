@@ -13,4 +13,6 @@ public record SpotResponse(
     bool? DeviceOnline,
     DateTime? DeviceLastSeen,
     bool IsArchived,
-    DateTime CreatedAt);
+    DateTime CreatedAt,
+    SpotSessionResponse? Session,
+    bool SwitchOffFailed);

@@ -186,4 +186,22 @@
   <data name="SpotGroupArchived" xml:space="preserve">
     <value>This group is archived</value>
   </data>
+  <data name="SessionInvalidMinutes" xml:space="preserve">
+    <value>Minutes must be between 1 and 600</value>
+  </data>
+  <data name="SessionInvalidAmount" xml:space="preserve">
+    <value>The amount must be between 0 and the price, with at most 2 decimals</value>
+  </data>
+  <data name="SessionAlreadyRunning" xml:space="preserve">
+    <value>This spot already has a session</value>
+  </data>
+  <data name="SessionNotRunning" xml:space="preserve">
+    <value>This spot has no running session</value>
+  </data>
+  <data name="SpotSessionRunning" xml:space="preserve">
+    <value>Stop the running session first</value>
+  </data>
+  <data name="DeviceSessionRunning" xml:space="preserve">
+    <value>A spot on this device has a running session; stop it first</value>
+  </data>
 </root>

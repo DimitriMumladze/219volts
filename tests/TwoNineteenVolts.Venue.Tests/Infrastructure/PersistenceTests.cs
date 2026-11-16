@@ -2,10 +2,12 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using TwoNineteenVolts.Venue.Domain.Audit;
 using TwoNineteenVolts.Venue.Domain.Devices;
+using TwoNineteenVolts.Venue.Domain.Sessions;
 using TwoNineteenVolts.Venue.Domain.Spots;
 using TwoNineteenVolts.Venue.Domain.Users;
 using TwoNineteenVolts.Venue.Infrastructure.Data;
 using TwoNineteenVolts.Venue.Tests.Groups;
+using TwoNineteenVolts.Venue.Tests.Spots;
 
 namespace TwoNineteenVolts.Venue.Tests.Infrastructure;
 
@@ -166,5 +168,85 @@ public class PersistenceTests
             Assert.Equal("user:7", loaded.Target);
             Assert.Null(loaded.Details);
         }
+    }
+
+    [Fact]
+    public async Task Session_and_charges_round_trip()
+    {
+        using var factory = new VenueAppFactory();
+        var spotId = await TestSpots.AddAsync(factory, "Billiard 1", null, null);
+        var endsAt = CreatedAt.AddMinutes(60);
+        var endedAt = CreatedAt.AddMinutes(30);
+        var session = new Session(spotId, CreatedAt, endsAt, 7, "Gio");
+        session.Extend(15);
+        session.End(endedAt, SessionEndReason.ManualOff, 8, "Nino");
+        await SaveAsync(factory, session);
+        var charge = new SessionCharge(session.Id, ChargeKind.Extend, CreatedAt, null, "Timer", 15, 250, 0);
+        await SaveAsync(factory, charge);
+
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<VenueDbContext>();
+        var loaded = await db.Sessions.SingleAsync(s => s.Id == session.Id);
+        var loadedCharge = await db.SessionCharges.SingleAsync(c => c.Id == charge.Id);
+        Assert.Equal(spotId, loaded.SpotId);
+        Assert.Equal(CreatedAt, loaded.StartedAt);
+        Assert.Equal(endsAt.AddMinutes(15), loaded.EndsAt);
+        Assert.Equal(endedAt, loaded.EndedAt);
+        Assert.Equal(SessionEndReason.ManualOff, loaded.EndReason);
+        Assert.Equal(7, loaded.StartedByUserId);
+        Assert.Equal("Gio", loaded.StartedByName);
+        Assert.Equal(8, loaded.EndedByUserId);
+        Assert.Equal("Nino", loaded.EndedByName);
+        Assert.False(loaded.IsRunning);
+        Assert.Equal(session.Id, loadedCharge.SessionId);
+        Assert.Equal(ChargeKind.Extend, loadedCharge.Kind);
+        Assert.Null(loadedCharge.UserId);
+        Assert.Equal("Timer", loadedCharge.UserName);
+        Assert.Equal(15, loadedCharge.Minutes);
+        Assert.Equal(250, loadedCharge.ComputedTetri);
+        Assert.Equal(0, loadedCharge.ChargedTetri);
+    }
+
+    [Fact]
+    public async Task Second_running_session_on_a_spot_is_refused_by_the_database()
+    {
+        using var factory = new VenueAppFactory();
+        var spotId = await TestSpots.AddAsync(factory, "Billiard 1", null, null);
+        var endsAt = CreatedAt.AddMinutes(60);
+        await SaveAsync(factory, new Session(spotId, CreatedAt, endsAt, 7, "Gio"));
+
+        var second = SaveAsync(factory, new Session(spotId, CreatedAt, endsAt, 7, "Gio"));
+
+        await Assert.ThrowsAsync<DbUpdateException>(() => second);
+    }
+
+    [Fact]
+    public async Task Ended_sessions_do_not_block_a_new_one()
+    {
+        using var factory = new VenueAppFactory();
+        var spotId = await TestSpots.AddAsync(factory, "Billiard 1", null, null);
+        var endsAt = CreatedAt.AddMinutes(60);
+        var first = new Session(spotId, CreatedAt, endsAt, 7, "Gio");
+        first.End(endsAt, SessionEndReason.TimeUp, null, "Timer");
+        var second = new Session(spotId, CreatedAt, endsAt, 7, "Gio");
+        second.End(endsAt, SessionEndReason.Stopped, 7, "Gio");
+        await SaveAsync(factory, first);
+        await SaveAsync(factory, second);
+
+        await SaveAsync(factory, new Session(spotId, endsAt, endsAt.AddMinutes(30), 7, "Gio"));
+
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<VenueDbContext>();
+        var count = await db.Sessions.CountAsync();
+        Assert.Equal(3, count);
+    }
+
+
+    private static async Task SaveAsync<T>(VenueAppFactory factory, T entity) where T : class
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<VenueDbContext>();
+        db.Add(entity);
+        await db.SaveChangesAsync();
     }
 }

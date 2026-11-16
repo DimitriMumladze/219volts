@@ -4,6 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using TwoNineteenVolts.Venue.Application.Audit;
 using TwoNineteenVolts.Venue.Application.Data;
 using TwoNineteenVolts.Venue.Application.Events;
+using TwoNineteenVolts.Venue.Application.Sessions;
 using TwoNineteenVolts.Venue.Common;
 using TwoNineteenVolts.Venue.Domain.Audit;
 using TwoNineteenVolts.Venue.Domain.Devices;
@@ -19,6 +20,7 @@ public class DeviceService(
     IAuditLog audit,
     ICurrentActor currentActor,
     IEventQueue events,
+    IRunningSessions runningSessions,
     TimeProvider time)
 {
     private const int MinPort = 1;
@@ -106,6 +108,11 @@ public class DeviceService(
         if (device is null)
         {
             return Fail(DeviceError.NotFound);
+        }
+
+        if (await runningSessions.OnDeviceAsync(id))
+        {
+            return Fail(DeviceError.SessionRunning);
         }
 
         var spots = await db.Spots
