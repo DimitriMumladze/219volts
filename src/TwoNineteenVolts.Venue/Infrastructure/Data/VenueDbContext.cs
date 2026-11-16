@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using TwoNineteenVolts.Venue.Application.Data;
 using TwoNineteenVolts.Venue.Domain.Audit;
 using TwoNineteenVolts.Venue.Domain.Devices;
+using TwoNineteenVolts.Venue.Domain.Groups;
 using TwoNineteenVolts.Venue.Domain.Spots;
 using TwoNineteenVolts.Venue.Domain.Users;
 
@@ -16,6 +17,8 @@ public class VenueDbContext(DbContextOptions<VenueDbContext> options) : DbContex
     public DbSet<Device> Devices => Set<Device>();
 
     public DbSet<Spot> Spots => Set<Spot>();
+
+    public DbSet<Group> Groups => Set<Group>();
 
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {

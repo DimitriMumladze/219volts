@@ -7,6 +7,7 @@ using TwoNineteenVolts.Venue.Domain.Devices;
 using TwoNineteenVolts.Venue.Domain.Spots;
 using TwoNineteenVolts.Venue.Infrastructure.Data;
 using TwoNineteenVolts.Venue.Tests.Events;
+using TwoNineteenVolts.Venue.Tests.Groups;
 
 namespace TwoNineteenVolts.Venue.Tests.Devices;
 
@@ -360,10 +361,11 @@ public class DeviceServiceTests
 
     private static async Task<int> AddSpotAsync(VenueAppFactory factory, string code, string name, int deviceId, int channel)
     {
+        var group = await TestGroups.DefaultAsync(factory);
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<VenueDbContext>();
         var now = factory.Time.GetUtcNow().UtcDateTime;
-        var spot = new Spot(code, name, deviceId, channel, now);
+        var spot = new Spot(code, name, group, deviceId, channel, now);
         db.Spots.Add(spot);
         await db.SaveChangesAsync();
         return spot.Id;

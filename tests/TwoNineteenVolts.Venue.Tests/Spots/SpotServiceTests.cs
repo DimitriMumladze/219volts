@@ -15,6 +15,7 @@ using TwoNineteenVolts.Venue.Domain.Users;
 using TwoNineteenVolts.Venue.Infrastructure.Data;
 using TwoNineteenVolts.Venue.Tests.Devices;
 using TwoNineteenVolts.Venue.Tests.Events;
+using TwoNineteenVolts.Venue.Tests.Groups;
 
 namespace TwoNineteenVolts.Venue.Tests.Spots;
 
@@ -28,9 +29,10 @@ public class SpotServiceTests
     public async Task Create_generates_code_saves_and_audits()
     {
         using var factory = new VenueAppFactory();
+        var group = await TestGroups.DefaultAsync(factory);
         var panel = await AddPanelAsync(factory);
 
-        var result = await UseServiceAsync(factory, Support, spots => spots.CreateAsync(" Billiard 1 ", panel, 1));
+        var result = await UseServiceAsync(factory, Support, spots => spots.CreateAsync(" Billiard 1 ", group, panel, 1));
 
         var spot = await FindAsync(factory, result.Value!.Id);
         var codeLooksRight = Regex.IsMatch(spot.Code, "^[a-z0-9]{6}$");
@@ -47,8 +49,9 @@ public class SpotServiceTests
     public async Task Create_without_device_makes_an_unmapped_spot()
     {
         using var factory = new VenueAppFactory();
+        var group = await TestGroups.DefaultAsync(factory);
 
-        var result = await UseServiceAsync(factory, Support, spots => spots.CreateAsync("Billiard 1", null, null));
+        var result = await UseServiceAsync(factory, Support, spots => spots.CreateAsync("Billiard 1", group, null, null));
 
         var spot = await FindAsync(factory, result.Value!.Id);
         Assert.False(spot.IsMapped);
@@ -61,8 +64,9 @@ public class SpotServiceTests
     public async Task Create_refuses_empty_name(string name)
     {
         using var factory = new VenueAppFactory();
+        var group = await TestGroups.DefaultAsync(factory);
 
-        var result = await UseServiceAsync(factory, Support, spots => spots.CreateAsync(name, null, null));
+        var result = await UseServiceAsync(factory, Support, spots => spots.CreateAsync(name, group, null, null));
 
         Assert.Equal(SpotError.InvalidName, result.Error);
     }
@@ -71,11 +75,12 @@ public class SpotServiceTests
     public async Task Create_refuses_name_over_30_characters_after_trimming()
     {
         using var factory = new VenueAppFactory();
+        var group = await TestGroups.DefaultAsync(factory);
         var thirty = new string('a', 30);
         var thirtyOne = new string('b', 31);
 
-        var tooLong = await UseServiceAsync(factory, Support, spots => spots.CreateAsync(thirtyOne, null, null));
-        var paddedThirty = await UseServiceAsync(factory, Support, spots => spots.CreateAsync($"  {thirty} ", null, null));
+        var tooLong = await UseServiceAsync(factory, Support, spots => spots.CreateAsync(thirtyOne, group, null, null));
+        var paddedThirty = await UseServiceAsync(factory, Support, spots => spots.CreateAsync($"  {thirty} ", group, null, null));
 
         Assert.Equal(SpotError.NameTooLong, tooLong.Error);
         Assert.False(paddedThirty.IsFailure);
@@ -85,9 +90,10 @@ public class SpotServiceTests
     public async Task Create_refuses_duplicate_name_ignoring_case_including_archived()
     {
         using var factory = new VenueAppFactory();
+        var group = await TestGroups.DefaultAsync(factory);
         await TestSpots.AddAsync(factory, "Billiard 1", null, null, archived: true);
 
-        var result = await UseServiceAsync(factory, Support, spots => spots.CreateAsync("BILLIARD 1", null, null));
+        var result = await UseServiceAsync(factory, Support, spots => spots.CreateAsync("BILLIARD 1", group, null, null));
 
         Assert.Equal(SpotError.DuplicateName, result.Error);
     }
@@ -96,10 +102,11 @@ public class SpotServiceTests
     public async Task Create_refuses_half_mapping()
     {
         using var factory = new VenueAppFactory();
+        var group = await TestGroups.DefaultAsync(factory);
         var panel = await AddPanelAsync(factory);
 
-        var deviceOnly = await UseServiceAsync(factory, Support, spots => spots.CreateAsync("Billiard 1", panel, null));
-        var channelOnly = await UseServiceAsync(factory, Support, spots => spots.CreateAsync("Billiard 2", null, 1));
+        var deviceOnly = await UseServiceAsync(factory, Support, spots => spots.CreateAsync("Billiard 1", group, panel, null));
+        var channelOnly = await UseServiceAsync(factory, Support, spots => spots.CreateAsync("Billiard 2", group, null, 1));
 
         Assert.Equal(SpotError.InvalidMapping, deviceOnly.Error);
         Assert.Equal(SpotError.InvalidMapping, channelOnly.Error);
@@ -109,8 +116,9 @@ public class SpotServiceTests
     public async Task Create_refuses_unknown_device()
     {
         using var factory = new VenueAppFactory();
+        var group = await TestGroups.DefaultAsync(factory);
 
-        var result = await UseServiceAsync(factory, Support, spots => spots.CreateAsync("Billiard 1", 999, 1));
+        var result = await UseServiceAsync(factory, Support, spots => spots.CreateAsync("Billiard 1", group, 999, 1));
 
         Assert.Equal(SpotError.UnknownDevice, result.Error);
     }
@@ -121,9 +129,10 @@ public class SpotServiceTests
     public async Task Create_refuses_channel_out_of_range(int channel)
     {
         using var factory = new VenueAppFactory();
+        var group = await TestGroups.DefaultAsync(factory);
         var panel = await AddPanelAsync(factory);
 
-        var result = await UseServiceAsync(factory, Support, spots => spots.CreateAsync("Billiard 1", panel, channel));
+        var result = await UseServiceAsync(factory, Support, spots => spots.CreateAsync("Billiard 1", group, panel, channel));
 
         Assert.Equal(SpotError.ChannelOutOfRange, result.Error);
     }
@@ -132,10 +141,11 @@ public class SpotServiceTests
     public async Task Create_refuses_channel_already_used()
     {
         using var factory = new VenueAppFactory();
+        var group = await TestGroups.DefaultAsync(factory);
         var panel = await AddPanelAsync(factory);
         await TestSpots.AddAsync(factory, "Billiard 1", panel, 1);
 
-        var result = await UseServiceAsync(factory, Support, spots => spots.CreateAsync("Billiard 2", panel, 1));
+        var result = await UseServiceAsync(factory, Support, spots => spots.CreateAsync("Billiard 2", group, panel, 1));
 
         Assert.Equal(SpotError.ChannelInUse, result.Error);
     }
@@ -144,11 +154,12 @@ public class SpotServiceTests
     public async Task Create_returns_code_taken_when_generated_code_exists()
     {
         using var factory = new VenueAppFactory();
+        var group = await TestGroups.DefaultAsync(factory);
         await TestSpots.AddAsync(factory, "Billiard 1", null, null);
         var takenCode = await CodeOfAsync(factory, "Billiard 1");
         var codes = new FixedSpotCodeGenerator(takenCode);
 
-        var result = await UseServiceAsync(factory, Support, spots => spots.CreateAsync("Billiard 2", null, null), codes);
+        var result = await UseServiceAsync(factory, Support, spots => spots.CreateAsync("Billiard 2", group, null, null), codes);
 
         Assert.Equal(SpotError.CodeTaken, result.Error);
     }
@@ -157,11 +168,12 @@ public class SpotServiceTests
     public async Task Update_renames_remaps_and_audits_old_to_new()
     {
         using var factory = new VenueAppFactory();
+        var group = await TestGroups.DefaultAsync(factory);
         var panel = await AddPanelAsync(factory);
         var otherPanel = await TestDevices.AddAsync(factory, "Panel 2", DeviceKind.WaveshareModbusTcp, "192.168.10.22", 502, 16);
         var id = await TestSpots.AddAsync(factory, "Billiard 1", panel, 1);
 
-        var result = await UseServiceAsync(factory, Support, spots => spots.UpdateAsync(id, " Billiard A ", otherPanel, 3));
+        var result = await UseServiceAsync(factory, Support, spots => spots.UpdateAsync(id, " Billiard A ", group, otherPanel, 3));
 
         var spot = await FindAsync(factory, id);
         var entry = await SingleAuditAsync(factory, AuditActions.SpotUpdated);
@@ -175,10 +187,11 @@ public class SpotServiceTests
     public async Task Update_can_unmap()
     {
         using var factory = new VenueAppFactory();
+        var group = await TestGroups.DefaultAsync(factory);
         var panel = await AddPanelAsync(factory);
         var id = await TestSpots.AddAsync(factory, "Billiard 1", panel, 1);
 
-        await UseServiceAsync(factory, Support, spots => spots.UpdateAsync(id, "Billiard 1", null, null));
+        await UseServiceAsync(factory, Support, spots => spots.UpdateAsync(id, "Billiard 1", group, null, null));
 
         var spot = await FindAsync(factory, id);
         var entry = await SingleAuditAsync(factory, AuditActions.SpotUpdated);
@@ -190,10 +203,11 @@ public class SpotServiceTests
     public async Task Manager_can_rename()
     {
         using var factory = new VenueAppFactory();
+        var group = await TestGroups.DefaultAsync(factory);
         var panel = await AddPanelAsync(factory);
         var id = await TestSpots.AddAsync(factory, "Billiard 1", panel, 1);
 
-        var result = await UseServiceAsync(factory, Manager, spots => spots.UpdateAsync(id, "Billiard A", panel, 1));
+        var result = await UseServiceAsync(factory, Manager, spots => spots.UpdateAsync(id, "Billiard A", group, panel, 1));
 
         var spot = await FindAsync(factory, id);
         Assert.False(result.IsFailure);
@@ -204,11 +218,12 @@ public class SpotServiceTests
     public async Task Manager_changing_device_or_channel_is_refused_and_nothing_saved()
     {
         using var factory = new VenueAppFactory();
+        var group = await TestGroups.DefaultAsync(factory);
         var panel = await AddPanelAsync(factory);
         var id = await TestSpots.AddAsync(factory, "Billiard 1", panel, 1);
 
-        var otherChannel = await UseServiceAsync(factory, Manager, spots => spots.UpdateAsync(id, "Billiard A", panel, 2));
-        var unmap = await UseServiceAsync(factory, Manager, spots => spots.UpdateAsync(id, "Billiard A", null, null));
+        var otherChannel = await UseServiceAsync(factory, Manager, spots => spots.UpdateAsync(id, "Billiard A", group, panel, 2));
+        var unmap = await UseServiceAsync(factory, Manager, spots => spots.UpdateAsync(id, "Billiard A", group, null, null));
 
         var spot = await FindAsync(factory, id);
         Assert.Equal(SpotError.OnlyNameChangeAllowed, otherChannel.Error);
@@ -220,10 +235,11 @@ public class SpotServiceTests
     public async Task Manager_sending_unchanged_mapping_can_rename()
     {
         using var factory = new VenueAppFactory();
+        var group = await TestGroups.DefaultAsync(factory);
         var panel = await AddPanelAsync(factory);
         var id = await TestSpots.AddAsync(factory, "Billiard 1", panel, 5);
 
-        var result = await UseServiceAsync(factory, Manager, spots => spots.UpdateAsync(id, "Billiard A", panel, 5));
+        var result = await UseServiceAsync(factory, Manager, spots => spots.UpdateAsync(id, "Billiard A", group, panel, 5));
 
         Assert.False(result.IsFailure);
     }
@@ -232,13 +248,14 @@ public class SpotServiceTests
     public async Task Staff_and_manager_cannot_see_unmapped_or_archived_spots()
     {
         using var factory = new VenueAppFactory();
+        var group = await TestGroups.DefaultAsync(factory);
         var unmapped = await TestSpots.AddAsync(factory, "Billiard 1", null, null);
         var archived = await TestSpots.AddAsync(factory, "Billiard 2", null, null, archived: true);
 
-        var managerUnmapped = await UseServiceAsync(factory, Manager, spots => spots.UpdateAsync(unmapped, "Billiard A", null, null));
-        var managerArchived = await UseServiceAsync(factory, Manager, spots => spots.UpdateAsync(archived, "Billiard B", null, null));
-        var staffUnmapped = await UseServiceAsync(factory, Staff, spots => spots.UpdateAsync(unmapped, "Billiard A", null, null));
-        var staffArchived = await UseServiceAsync(factory, Staff, spots => spots.UpdateAsync(archived, "Billiard B", null, null));
+        var managerUnmapped = await UseServiceAsync(factory, Manager, spots => spots.UpdateAsync(unmapped, "Billiard A", group, null, null));
+        var managerArchived = await UseServiceAsync(factory, Manager, spots => spots.UpdateAsync(archived, "Billiard B", group, null, null));
+        var staffUnmapped = await UseServiceAsync(factory, Staff, spots => spots.UpdateAsync(unmapped, "Billiard A", group, null, null));
+        var staffArchived = await UseServiceAsync(factory, Staff, spots => spots.UpdateAsync(archived, "Billiard B", group, null, null));
 
         Assert.Equal(SpotError.NotFound, managerUnmapped.Error);
         Assert.Equal(SpotError.NotFound, managerArchived.Error);
@@ -250,12 +267,13 @@ public class SpotServiceTests
     public async Task New_code_replaces_code_audits_and_frees_the_old_one()
     {
         using var factory = new VenueAppFactory();
+        var group = await TestGroups.DefaultAsync(factory);
         var id = await TestSpots.AddAsync(factory, "Billiard 1", null, null);
         var oldCode = await CodeOfAsync(factory, "Billiard 1");
 
         var result = await UseServiceAsync(factory, Support, spots => spots.NewCodeAsync(id));
         var reused = new FixedSpotCodeGenerator(oldCode);
-        var other = await UseServiceAsync(factory, Support, spots => spots.CreateAsync("Billiard 2", null, null), reused);
+        var other = await UseServiceAsync(factory, Support, spots => spots.CreateAsync("Billiard 2", group, null, null), reused);
 
         var newCode = await CodeOfAsync(factory, "Billiard 1");
         var entry = await SingleAuditAsync(factory, AuditActions.SpotCodeChanged);
@@ -270,11 +288,12 @@ public class SpotServiceTests
     public async Task Archive_clears_mapping_and_audits()
     {
         using var factory = new VenueAppFactory();
+        var group = await TestGroups.DefaultAsync(factory);
         var panel = await AddPanelAsync(factory);
         var id = await TestSpots.AddAsync(factory, "Billiard 1", panel, 1);
 
         var result = await UseServiceAsync(factory, Support, spots => spots.ArchiveAsync(id));
-        var channelFreed = await UseServiceAsync(factory, Support, spots => spots.CreateAsync("Billiard 2", panel, 1));
+        var channelFreed = await UseServiceAsync(factory, Support, spots => spots.CreateAsync("Billiard 2", group, panel, 1));
 
         var spot = await FindAsync(factory, id);
         var entry = await SingleAuditAsync(factory, AuditActions.SpotArchived);
@@ -289,12 +308,13 @@ public class SpotServiceTests
     public async Task Archived_spot_keeps_name_and_code_taken()
     {
         using var factory = new VenueAppFactory();
+        var group = await TestGroups.DefaultAsync(factory);
         await TestSpots.AddAsync(factory, "Billiard 1", null, null, archived: true);
         var archivedCode = await CodeOfAsync(factory, "Billiard 1");
         var sameCode = new FixedSpotCodeGenerator(archivedCode);
 
-        var sameName = await UseServiceAsync(factory, Support, spots => spots.CreateAsync("Billiard 1", null, null));
-        var codeTaken = await UseServiceAsync(factory, Support, spots => spots.CreateAsync("Billiard 2", null, null), sameCode);
+        var sameName = await UseServiceAsync(factory, Support, spots => spots.CreateAsync("Billiard 1", group, null, null));
+        var codeTaken = await UseServiceAsync(factory, Support, spots => spots.CreateAsync("Billiard 2", group, null, null), sameCode);
 
         Assert.Equal(SpotError.DuplicateName, sameName.Error);
         Assert.Equal(SpotError.CodeTaken, codeTaken.Error);
@@ -304,9 +324,10 @@ public class SpotServiceTests
     public async Task Changes_to_archived_spot_are_refused_for_support()
     {
         using var factory = new VenueAppFactory();
+        var group = await TestGroups.DefaultAsync(factory);
         var id = await TestSpots.AddAsync(factory, "Billiard 1", null, null, archived: true);
 
-        var update = await UseServiceAsync(factory, Support, spots => spots.UpdateAsync(id, "Billiard A", null, null));
+        var update = await UseServiceAsync(factory, Support, spots => spots.UpdateAsync(id, "Billiard A", group, null, null));
         var newCode = await UseServiceAsync(factory, Support, spots => spots.NewCodeAsync(id));
         var archive = await UseServiceAsync(factory, Support, spots => spots.ArchiveAsync(id));
 
@@ -338,15 +359,86 @@ public class SpotServiceTests
     }
 
     [Fact]
-    public async Task Spot_actions_publish_spot_events()
+    public async Task Create_with_unknown_group_is_refused()
+    {
+        using var factory = new VenueAppFactory();
+
+        var result = await UseServiceAsync(factory, Support, spots => spots.CreateAsync("Billiard 1", 99, null, null));
+
+        Assert.Equal(SpotError.UnknownGroup, result.Error);
+    }
+
+    [Fact]
+    public async Task Create_into_archived_group_is_refused()
+    {
+        using var factory = new VenueAppFactory();
+        var old = await TestGroups.AddAsync(factory, "Old", archived: true);
+
+        var result = await UseServiceAsync(factory, Support, spots => spots.CreateAsync("Billiard 1", old, null, null));
+
+        Assert.Equal(SpotError.GroupArchived, result.Error);
+    }
+
+    [Fact]
+    public async Task Support_moves_a_spot_to_another_group_and_audit_shows_it()
+    {
+        using var factory = new VenueAppFactory();
+        var billiards = await TestGroups.AddAsync(factory, "Billiards");
+        var pool = await TestGroups.AddAsync(factory, "Pool");
+        var id = await TestSpots.AddAsync(factory, "Billiard 1", null, null, groupId: billiards);
+
+        var result = await UseServiceAsync(factory, Support, spots => spots.UpdateAsync(id, "Billiard 1", pool, null, null));
+
+        var spot = await FindAsync(factory, id);
+        var entry = await SingleAuditAsync(factory, AuditActions.SpotUpdated);
+        Assert.False(result.IsFailure);
+        Assert.Equal(pool, spot.GroupId);
+        Assert.Equal($"group: {billiards} → {pool}", entry.Details);
+    }
+
+    [Fact]
+    public async Task Manager_cannot_move_a_spot_to_another_group()
     {
         using var factory = new VenueAppFactory();
         var panel = await AddPanelAsync(factory);
-        var created = await UseServiceAsync(factory, Support, spots => spots.CreateAsync("Billiard 1", panel, 3));
+        var billiards = await TestGroups.AddAsync(factory, "Billiards");
+        var pool = await TestGroups.AddAsync(factory, "Pool");
+        var id = await TestSpots.AddAsync(factory, "Billiard 1", panel, 1, groupId: billiards);
+
+        var result = await UseServiceAsync(factory, Manager, spots => spots.UpdateAsync(id, "Billiard A", pool, panel, 1));
+
+        var spot = await FindAsync(factory, id);
+        Assert.Equal(SpotError.OnlyNameChangeAllowed, result.Error);
+        Assert.Equal("Billiard 1", spot.Name);
+        Assert.Equal(billiards, spot.GroupId);
+    }
+
+    [Fact]
+    public async Task Moving_into_an_archived_or_unknown_group_is_refused()
+    {
+        using var factory = new VenueAppFactory();
+        var billiards = await TestGroups.AddAsync(factory, "Billiards");
+        var old = await TestGroups.AddAsync(factory, "Old", archived: true);
+        var id = await TestSpots.AddAsync(factory, "Billiard 1", null, null, groupId: billiards);
+
+        var archived = await UseServiceAsync(factory, Support, spots => spots.UpdateAsync(id, "Billiard 1", old, null, null));
+        var unknown = await UseServiceAsync(factory, Support, spots => spots.UpdateAsync(id, "Billiard 1", 99, null, null));
+
+        Assert.Equal(SpotError.GroupArchived, archived.Error);
+        Assert.Equal(SpotError.UnknownGroup, unknown.Error);
+    }
+
+    [Fact]
+    public async Task Spot_actions_publish_spot_events()
+    {
+        using var factory = new VenueAppFactory();
+        var group = await TestGroups.DefaultAsync(factory);
+        var panel = await AddPanelAsync(factory);
+        var created = await UseServiceAsync(factory, Support, spots => spots.CreateAsync("Billiard 1", group, panel, 3));
         var id = created.Value!.Id;
 
-        await UseServiceAsync(factory, Support, spots => spots.UpdateAsync(id, "Billiard 1", panel, 3));
-        await UseServiceAsync(factory, Support, spots => spots.UpdateAsync(id, "Billiard A", panel, 3));
+        await UseServiceAsync(factory, Support, spots => spots.UpdateAsync(id, "Billiard 1", group, panel, 3));
+        await UseServiceAsync(factory, Support, spots => spots.UpdateAsync(id, "Billiard A", group, panel, 3));
         await UseServiceAsync(factory, Support, spots => spots.NewCodeAsync(id));
         await UseServiceAsync(factory, Staff, spots => spots.SwitchAsync(id, true));
         await UseServiceAsync(factory, Support, spots => spots.ArchiveAsync(id));
@@ -519,10 +611,11 @@ public class SpotServiceTests
     public async Task Update_without_changes_records_nothing()
     {
         using var factory = new VenueAppFactory();
+        var group = await TestGroups.DefaultAsync(factory);
         var panel = await AddPanelAsync(factory);
         var id = await TestSpots.AddAsync(factory, "Billiard 1", panel, 3);
 
-        var result = await UseServiceAsync(factory, Support, spots => spots.UpdateAsync(id, " Billiard 1 ", panel, 3));
+        var result = await UseServiceAsync(factory, Support, spots => spots.UpdateAsync(id, " Billiard 1 ", group, panel, 3));
 
         var actions = await AuditActionsAsync(factory);
         Assert.False(result.IsFailure);
@@ -553,9 +646,10 @@ public class SpotServiceTests
     public async Task Names_differing_only_in_case_in_any_language_are_duplicates(string existing, string candidate)
     {
         using var factory = new VenueAppFactory();
-        await UseServiceAsync(factory, Support, spots => spots.CreateAsync(existing, null, null));
+        var group = await TestGroups.DefaultAsync(factory);
+        await UseServiceAsync(factory, Support, spots => spots.CreateAsync(existing, group, null, null));
 
-        var result = await UseServiceAsync(factory, Support, spots => spots.CreateAsync(candidate, null, null));
+        var result = await UseServiceAsync(factory, Support, spots => spots.CreateAsync(candidate, group, null, null));
 
         Assert.Equal(SpotError.DuplicateName, result.Error);
     }

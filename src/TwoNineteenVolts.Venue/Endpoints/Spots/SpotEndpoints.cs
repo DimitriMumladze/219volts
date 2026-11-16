@@ -5,6 +5,7 @@ using TwoNineteenVolts.Venue.Application.Devices;
 using TwoNineteenVolts.Venue.Application.Spots;
 using TwoNineteenVolts.Venue.Common;
 using TwoNineteenVolts.Venue.Domain.Devices;
+using TwoNineteenVolts.Venue.Domain.Groups;
 using TwoNineteenVolts.Venue.Domain.Spots;
 using TwoNineteenVolts.Venue.Domain.Users;
 using TwoNineteenVolts.Venue.Infrastructure.Auth;
@@ -40,8 +41,9 @@ public static class SpotEndpoints
             .OrderBy(s => s.Name)
             .ToListAsync();
         var devices = await db.Devices.ToDictionaryAsync(d => d.Id);
+        var groups = await db.Groups.ToDictionaryAsync(g => g.Id);
 
-        var responses = visible.Select(s => ToResponse(s, devices, statuses)).ToList();
+        var responses = visible.Select(s => ToResponse(s, devices, groups, statuses)).ToList();
         return TypedResults.Ok(responses);
     }
 
@@ -66,7 +68,7 @@ public static class SpotEndpoints
 
     private static async Task<IResult> CreateAsync(CreateSpotRequest request, SpotService spots, IVenueDbContext db, DeviceStatuses statuses)
     {
-        var result = await spots.CreateAsync(request.Name, request.DeviceId, request.Channel);
+        var result = await spots.CreateAsync(request.Name, request.GroupId, request.DeviceId, request.Channel);
         if (result.IsFailure)
         {
             return ToProblem(result.Error);
@@ -79,7 +81,7 @@ public static class SpotEndpoints
 
     private static async Task<IResult> UpdateAsync(int id, UpdateSpotRequest request, SpotService spots, IVenueDbContext db, DeviceStatuses statuses)
     {
-        var result = await spots.UpdateAsync(id, request.Name, request.DeviceId, request.Channel);
+        var result = await spots.UpdateAsync(id, request.Name, request.GroupId, request.DeviceId, request.Channel);
         return await ToResultAsync(result, db, statuses);
     }
 
@@ -142,10 +144,10 @@ public static class SpotEndpoints
         {
             SpotError.NotFound => StatusCodes.Status404NotFound,
             SpotError.InvalidName or SpotError.NameTooLong or SpotError.InvalidMapping
-                or SpotError.UnknownDevice or SpotError.ChannelOutOfRange => StatusCodes.Status400BadRequest,
+                or SpotError.UnknownDevice or SpotError.ChannelOutOfRange or SpotError.UnknownGroup => StatusCodes.Status400BadRequest,
             SpotError.OnlyNameChangeAllowed => StatusCodes.Status403Forbidden,
             SpotError.DuplicateName or SpotError.ChannelInUse or SpotError.Unmapped
-                or SpotError.Archived or SpotError.CodeTaken => StatusCodes.Status409Conflict,
+                or SpotError.Archived or SpotError.CodeTaken or SpotError.GroupArchived => StatusCodes.Status409Conflict,
             DeviceError.ErrorAnswer or SpotError.StateMismatch => StatusCodes.Status502BadGateway,
             DeviceError.NoAnswer => StatusCodes.Status504GatewayTimeout,
             _ => StatusCodes.Status500InternalServerError
@@ -159,15 +161,19 @@ public static class SpotEndpoints
         var devices = await db.Devices
             .Where(d => d.Id == spot.DeviceId)
             .ToDictionaryAsync(d => d.Id);
+        var groups = await db.Groups
+            .Where(g => g.Id == spot.GroupId)
+            .ToDictionaryAsync(g => g.Id);
 
-        return ToResponse(spot, devices, statuses);
+        return ToResponse(spot, devices, groups, statuses);
     }
 
-    private static SpotResponse ToResponse(Spot spot, Dictionary<int, Device> devices, DeviceStatuses statuses)
+    private static SpotResponse ToResponse(Spot spot, Dictionary<int, Device> devices, Dictionary<int, Group> groups, DeviceStatuses statuses)
     {
+        var group = groups[spot.GroupId];
         if (spot.DeviceId is not int deviceId || spot.Channel is not int channel)
         {
-            return new SpotResponse(spot.Id, spot.Code, spot.Name, null, null, null, null, null, null, spot.IsArchived, spot.CreatedAt);
+            return new SpotResponse(spot.Id, spot.Code, spot.Name, group.Id, group.Name, null, null, null, null, null, null, spot.IsArchived, spot.CreatedAt);
         }
 
         var device = devices[deviceId];
@@ -178,6 +184,8 @@ public static class SpotEndpoints
             spot.Id,
             spot.Code,
             spot.Name,
+            group.Id,
+            group.Name,
             deviceId,
             device.Name,
             channel,

@@ -29,10 +29,17 @@ public class SpotService(
     private const string ErrorAnswerReason = "error answer";
     private const string MismatchReason = "mismatch";
 
-    public async Task<Result<Spot>> CreateAsync(string name, int? deviceId, int? channel)
+    public async Task<Result<Spot>> CreateAsync(string name, int groupId, int? deviceId, int? channel)
     {
         var cleanName = name.Trim();
         var error = ValidateInput(cleanName, deviceId, channel);
+        if (error is not null)
+        {
+            return Fail(error);
+        }
+
+        await using var transaction = await db.Database.BeginTransactionAsync();
+        error = await ValidateGroupAsync(groupId);
         if (error is not null)
         {
             return Fail(error);
@@ -51,9 +58,8 @@ public class SpotService(
         }
 
         var now = time.GetUtcNow().UtcDateTime;
-        var spot = new Spot(code, cleanName, deviceId, channel, now);
+        var spot = new Spot(code, cleanName, groupId, deviceId, channel, now);
 
-        await using var transaction = await db.Database.BeginTransactionAsync();
         db.Spots.Add(spot);
         await db.SaveChangesAsync();
         var actor = currentActor.Get();
@@ -66,7 +72,7 @@ public class SpotService(
         return Result<Spot>.Ok(spot);
     }
 
-    public async Task<Result<Spot>> UpdateAsync(int id, string name, int? deviceId, int? channel)
+    public async Task<Result<Spot>> UpdateAsync(int id, string name, int groupId, int? deviceId, int? channel)
     {
         var actor = currentActor.Get();
         var spot = await FindVisibleAsync(id, actor);
@@ -81,7 +87,8 @@ public class SpotService(
         }
 
         var mappingChanged = spot.DeviceId != deviceId || spot.Channel != channel;
-        if (mappingChanged && actor.Role != Role.Support)
+        var groupChanged = spot.GroupId != groupId;
+        if ((mappingChanged || groupChanged) && actor.Role != Role.Support)
         {
             return Fail(SpotError.OnlyNameChangeAllowed);
         }
@@ -93,18 +100,31 @@ public class SpotService(
             return Fail(error);
         }
 
+        await using var transaction = await db.Database.BeginTransactionAsync();
+        if (groupChanged)
+        {
+            error = await ValidateGroupAsync(groupId);
+            if (error is not null)
+            {
+                return Fail(error);
+            }
+        }
+
         error = await ValidateAgainstOthersAsync(cleanName, deviceId, channel, ignoredSpotId: id);
         if (error is not null)
         {
             return Fail(error);
         }
 
+        var oldGroup = ShowOrNone(spot.GroupId);
+        var newGroup = ShowOrNone(groupId);
         var oldDevice = ShowOrNone(spot.DeviceId);
         var newDevice = ShowOrNone(deviceId);
         var oldChannel = ShowOrNone(spot.Channel);
         var newChannel = ShowOrNone(channel);
         var changes = Changes(
             ("name", spot.Name, cleanName),
+            ("group", oldGroup, newGroup),
             ("device", oldDevice, newDevice),
             ("channel", oldChannel, newChannel));
         if (changes.Length == 0)
@@ -113,6 +133,7 @@ public class SpotService(
         }
 
         spot.Rename(cleanName);
+        spot.MoveTo(groupId);
         if (deviceId is int mappedDeviceId && channel is int mappedChannel)
         {
             spot.MapTo(mappedDeviceId, mappedChannel);
@@ -125,6 +146,7 @@ public class SpotService(
         var target = AuditTarget.Spot(spot.Id);
         audit.Record(actor, AuditActions.SpotUpdated, target, changes);
         await db.SaveChangesAsync();
+        await transaction.CommitAsync();
 
         events.Publish(new SpotUpdated(spot.Id));
         return Result<Spot>.Ok(spot);
@@ -284,6 +306,22 @@ public class SpotService(
         if (hasDevice != hasChannel)
         {
             return SpotError.InvalidMapping;
+        }
+
+        return null;
+    }
+
+    private async Task<string?> ValidateGroupAsync(int groupId)
+    {
+        var group = await db.Groups.SingleOrDefaultAsync(g => g.Id == groupId);
+        if (group is null)
+        {
+            return SpotError.UnknownGroup;
+        }
+
+        if (group.IsArchived)
+        {
+            return SpotError.GroupArchived;
         }
 
         return null;

@@ -24,4 +24,9 @@ public static class AuditActions
     public const string SpotSwitchedOn = "spot.switched_on";
     public const string SpotSwitchedOff = "spot.switched_off";
     public const string SpotSwitchFailed = "spot.switch_failed";
+
+    public const string GroupCreated = "group.created";
+    public const string GroupRenamed = "group.renamed";
+    public const string GroupRateChanged = "group.rate_changed";
+    public const string GroupArchived = "group.archived";
 }

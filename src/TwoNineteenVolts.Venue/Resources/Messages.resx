@@ -159,4 +159,31 @@
   <data name="SetupRestartService" xml:space="preserve">
     <value>Then restart the 219volts service to sign out active Support sessions.</value>
   </data>
+  <data name="GroupNotFound" xml:space="preserve">
+    <value>Group not found</value>
+  </data>
+  <data name="GroupInvalidName" xml:space="preserve">
+    <value>Name must not be empty</value>
+  </data>
+  <data name="GroupNameTooLong" xml:space="preserve">
+    <value>The name can have at most {0} characters</value>
+  </data>
+  <data name="GroupDuplicateName" xml:space="preserve">
+    <value>Another group already has this name</value>
+  </data>
+  <data name="GroupInvalidRate" xml:space="preserve">
+    <value>The hourly rate must be more than 0 and at most 9999.99, with at most 2 decimals</value>
+  </data>
+  <data name="GroupArchived" xml:space="preserve">
+    <value>This group is archived</value>
+  </data>
+  <data name="GroupHasSpots" xml:space="preserve">
+    <value>Move or archive the spots in this group first</value>
+  </data>
+  <data name="SpotUnknownGroup" xml:space="preserve">
+    <value>Group not found</value>
+  </data>
+  <data name="SpotGroupArchived" xml:space="preserve">
+    <value>This group is archived</value>
+  </data>
 </root>

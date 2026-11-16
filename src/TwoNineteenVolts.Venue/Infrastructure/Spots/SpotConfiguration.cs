@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 using TwoNineteenVolts.Venue.Domain.Devices;
+using TwoNineteenVolts.Venue.Domain.Groups;
 using TwoNineteenVolts.Venue.Domain.Spots;
 
 namespace TwoNineteenVolts.Venue.Infrastructure.Spots;
@@ -22,6 +23,11 @@ public class SpotConfiguration : IEntityTypeConfiguration<Spot>
 
         builder.HasIndex(s => new { s.DeviceId, s.Channel })
             .IsUnique();
+
+        builder.HasOne<Group>()
+            .WithMany()
+            .HasForeignKey(s => s.GroupId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne<Device>()
             .WithMany()

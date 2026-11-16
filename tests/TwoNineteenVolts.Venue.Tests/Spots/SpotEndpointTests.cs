@@ -8,6 +8,7 @@ using TwoNineteenVolts.Venue.Application.Spots;
 using TwoNineteenVolts.Venue.Domain.Devices;
 using TwoNineteenVolts.Venue.Domain.Users;
 using TwoNineteenVolts.Venue.Tests.Devices;
+using TwoNineteenVolts.Venue.Tests.Groups;
 
 namespace TwoNineteenVolts.Venue.Tests.Spots;
 
@@ -19,6 +20,8 @@ public class SpotEndpointTests
         int Id,
         string Code,
         string Name,
+        int GroupId,
+        string GroupName,
         int? DeviceId,
         string? DeviceName,
         int? Channel,
@@ -32,13 +35,14 @@ public class SpotEndpointTests
     public async Task Support_can_create_update_new_code_archive_and_switch()
     {
         using var factory = new VenueAppFactory();
+        var group = await TestGroups.DefaultAsync(factory);
         var panel = await AddPanelAsync(factory);
         MarkKnown(factory, panel);
         using var client = await SupportClientAsync(factory);
 
-        var create = await client.PostAsJsonAsync("/api/spots", new { name = "Billiard 1", deviceId = panel, channel = 1 });
+        var create = await client.PostAsJsonAsync("/api/spots", new { name = "Billiard 1", groupId = group, deviceId = panel, channel = 1 });
         var created = (await create.Content.ReadFromJsonAsync<SpotDto>())!;
-        var update = await client.PutAsJsonAsync($"/api/spots/{created.Id}", new { name = "Billiard A", deviceId = panel, channel = 2 });
+        var update = await client.PutAsJsonAsync($"/api/spots/{created.Id}", new { name = "Billiard A", groupId = group, deviceId = panel, channel = 2 });
         var updated = (await update.Content.ReadFromJsonAsync<SpotDto>())!;
         var switchOn = await client.PutAsJsonAsync($"/api/spots/{created.Id}/state", new { on = true });
         var switched = (await switchOn.Content.ReadFromJsonAsync<SpotDto>())!;
@@ -103,6 +107,41 @@ public class SpotEndpointTests
     }
 
     [Fact]
+    public async Task Spot_shows_its_group()
+    {
+        using var factory = new VenueAppFactory();
+        var panel = await AddPanelAsync(factory);
+        var billiards = await TestGroups.AddAsync(factory, "Billiards");
+        var id = await TestSpots.AddAsync(factory, "Billiard 1", panel, 2, groupId: billiards);
+        using var client = await StaffClientAsync(factory);
+
+        var spot = (await client.GetFromJsonAsync<SpotDto>($"/api/spots/{id}"))!;
+
+        Assert.Equal(billiards, spot.GroupId);
+        Assert.Equal("Billiards", spot.GroupName);
+    }
+
+    [Fact]
+    public async Task Unknown_or_archived_group_gives_400_and_409()
+    {
+        using var factory = new VenueAppFactory();
+        var group = await TestGroups.DefaultAsync(factory);
+        var old = await TestGroups.AddAsync(factory, "Old", archived: true);
+        var id = await TestSpots.AddAsync(factory, "Billiard 1", null, null, groupId: group);
+        using var client = await SupportClientAsync(factory);
+
+        var createUnknown = await client.PostAsJsonAsync("/api/spots", new { name = "Billiard 2", groupId = 99 });
+        var createArchived = await client.PostAsJsonAsync("/api/spots", new { name = "Billiard 3", groupId = old });
+        var moveUnknown = await client.PutAsJsonAsync($"/api/spots/{id}", new { name = "Billiard 1", groupId = 99, deviceId = (int?)null, channel = (int?)null });
+        var moveArchived = await client.PutAsJsonAsync($"/api/spots/{id}", new { name = "Billiard 1", groupId = old, deviceId = (int?)null, channel = (int?)null });
+
+        await AssertProblemAsync(createUnknown, HttpStatusCode.BadRequest, SpotError.UnknownGroup);
+        await AssertProblemAsync(createArchived, HttpStatusCode.Conflict, SpotError.GroupArchived);
+        await AssertProblemAsync(moveUnknown, HttpStatusCode.BadRequest, SpotError.UnknownGroup);
+        await AssertProblemAsync(moveArchived, HttpStatusCode.Conflict, SpotError.GroupArchived);
+    }
+
+    [Fact]
     public async Task Staff_get_unmapped_spot_is_404()
     {
         using var factory = new VenueAppFactory();
@@ -154,13 +193,14 @@ public class SpotEndpointTests
     public async Task Staff_can_switch_but_gets_403_on_setup()
     {
         using var factory = new VenueAppFactory();
+        var group = await TestGroups.DefaultAsync(factory);
         var panel = await AddPanelAsync(factory);
         var id = await TestSpots.AddAsync(factory, "Billiard 1", panel, 1);
         using var client = await StaffClientAsync(factory);
 
         var switchOn = await client.PutAsJsonAsync($"/api/spots/{id}/state", new { on = true });
-        var create = await client.PostAsJsonAsync("/api/spots", new { name = "Billiard 2", deviceId = (int?)null, channel = (int?)null });
-        var update = await client.PutAsJsonAsync($"/api/spots/{id}", new { name = "Billiard A", deviceId = panel, channel = 1 });
+        var create = await client.PostAsJsonAsync("/api/spots", new { name = "Billiard 2", groupId = group, deviceId = (int?)null, channel = (int?)null });
+        var update = await client.PutAsJsonAsync($"/api/spots/{id}", new { name = "Billiard A", groupId = group, deviceId = panel, channel = 1 });
         var newCode = await client.PostAsync($"/api/spots/{id}/new-code", null);
         var archive = await client.PostAsync($"/api/spots/{id}/archive", null);
 
@@ -175,12 +215,13 @@ public class SpotEndpointTests
     public async Task Manager_can_rename_but_gets_403_on_create_new_code_and_archive()
     {
         using var factory = new VenueAppFactory();
+        var group = await TestGroups.DefaultAsync(factory);
         var panel = await AddPanelAsync(factory);
         var id = await TestSpots.AddAsync(factory, "Billiard 1", panel, 1);
         using var client = await ManagerClientAsync(factory);
 
-        var rename = await client.PutAsJsonAsync($"/api/spots/{id}", new { name = "Billiard A", deviceId = panel, channel = 1 });
-        var create = await client.PostAsJsonAsync("/api/spots", new { name = "Billiard 2", deviceId = (int?)null, channel = (int?)null });
+        var rename = await client.PutAsJsonAsync($"/api/spots/{id}", new { name = "Billiard A", groupId = group, deviceId = panel, channel = 1 });
+        var create = await client.PostAsJsonAsync("/api/spots", new { name = "Billiard 2", groupId = group, deviceId = (int?)null, channel = (int?)null });
         var newCode = await client.PostAsync($"/api/spots/{id}/new-code", null);
         var archive = await client.PostAsync($"/api/spots/{id}/archive", null);
 
@@ -194,11 +235,12 @@ public class SpotEndpointTests
     public async Task Manager_changing_mapping_gets_403()
     {
         using var factory = new VenueAppFactory();
+        var group = await TestGroups.DefaultAsync(factory);
         var panel = await AddPanelAsync(factory);
         var id = await TestSpots.AddAsync(factory, "Billiard 1", panel, 1);
         using var client = await ManagerClientAsync(factory);
 
-        var update = await client.PutAsJsonAsync($"/api/spots/{id}", new { name = "Billiard A", deviceId = panel, channel = 2 });
+        var update = await client.PutAsJsonAsync($"/api/spots/{id}", new { name = "Billiard A", groupId = group, deviceId = panel, channel = 2 });
 
         await AssertProblemAsync(update, HttpStatusCode.Forbidden, SpotError.OnlyNameChangeAllowed);
     }

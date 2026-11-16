@@ -31,6 +31,12 @@ public class SpotChangedPusher(IHubContext<VenueHub> hub, IVenueDbContext db) : 
                     .Where(s => s.DeviceId == changed.DeviceId && s.Channel == changed.Channel)
                     .Select(s => s.Id)
                     .ToListAsync();
+            case IGroupEvent groupEvent:
+                return await db.Spots
+                    .Where(s => s.GroupId == groupEvent.GroupId)
+                    .OrderBy(s => s.Id)
+                    .Select(s => s.Id)
+                    .ToListAsync();
             case IDeviceEvent deviceEvent:
                 return await db.Spots
                     .Where(s => s.DeviceId == deviceEvent.DeviceId)

@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using TwoNineteenVolts.Venue.Application.Devices;
+using TwoNineteenVolts.Venue.Application.Groups;
 using TwoNineteenVolts.Venue.Application.Spots;
 using TwoNineteenVolts.Venue.Domain.Devices;
 using TwoNineteenVolts.Venue.Domain.Users;
@@ -11,6 +12,7 @@ using TwoNineteenVolts.Venue.Infrastructure.Devices;
 using TwoNineteenVolts.Venue.Infrastructure.Events;
 using TwoNineteenVolts.Venue.Tests.Devices;
 using TwoNineteenVolts.Venue.Tests.Events;
+using TwoNineteenVolts.Venue.Tests.Groups;
 using TwoNineteenVolts.Venue.Tests.Spots;
 
 namespace TwoNineteenVolts.Venue.Tests.Live;
@@ -140,6 +142,24 @@ public class VenueHubTests
 
         var pushed = await PushedUntilMarkerAsync(factory, hub);
         Assert.Equal([first, second], pushed);
+    }
+
+    [Fact]
+    public async Task Renaming_a_group_pushes_its_spots()
+    {
+        using var factory = new VenueAppFactory();
+        var billiards = await TestGroups.AddAsync(factory, "Billiards");
+        var pool = await TestGroups.AddAsync(factory, "Pool");
+        var first = await TestSpots.AddAsync(factory, "Billiard 1", null, null, groupId: billiards);
+        await TestSpots.AddAsync(factory, "Pool 1", null, null, groupId: pool);
+        var (_, cookie) = await LoginAsync(factory, "Gio", Role.Staff);
+        await using var hub = await HubClient.ConnectAsync(factory, cookie);
+        var queue = factory.Services.GetRequiredService<EventQueue>();
+
+        queue.Publish(new GroupRenamed(billiards));
+        var pushed = await PushedUntilMarkerAsync(factory, hub);
+
+        Assert.Equal([first], pushed);
     }
 
     [Fact]

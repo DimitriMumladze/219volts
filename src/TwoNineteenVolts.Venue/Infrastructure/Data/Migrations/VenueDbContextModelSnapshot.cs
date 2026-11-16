@@ -93,6 +93,38 @@ namespace TwoNineteenVolts.Venue.Infrastructure.Data.Migrations
                     b.ToTable("Devices");
                 });
 
+            modelBuilder.Entity("TwoNineteenVolts.Venue.Domain.Groups.Group", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("TEXT");
+
+                    b.Property<long>("HourlyRateTetri")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<bool>("IsArchived")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<string>("Name")
+                        .IsRequired()
+                        .HasColumnType("TEXT")
+                        .UseCollation("NOCASE");
+
+                    b.Property<string>("NameKey")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("NameKey")
+                        .IsUnique();
+
+                    b.ToTable("Groups");
+                });
+
             modelBuilder.Entity("TwoNineteenVolts.Venue.Domain.Spots.Spot", b =>
                 {
                     b.Property<int>("Id")
@@ -112,6 +144,9 @@ namespace TwoNineteenVolts.Venue.Infrastructure.Data.Migrations
                     b.Property<int?>("DeviceId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int>("GroupId")
+                        .HasColumnType("INTEGER");
+
                     b.Property<bool>("IsArchived")
                         .HasColumnType("INTEGER");
 
@@ -128,6 +163,8 @@ namespace TwoNineteenVolts.Venue.Infrastructure.Data.Migrations
 
                     b.HasIndex("Code")
                         .IsUnique();
+
+                    b.HasIndex("GroupId");
 
                     b.HasIndex("NameKey")
                         .IsUnique();
@@ -181,6 +218,12 @@ namespace TwoNineteenVolts.Venue.Infrastructure.Data.Migrations
                         .WithMany()
                         .HasForeignKey("DeviceId")
                         .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("TwoNineteenVolts.Venue.Domain.Groups.Group", null)
+                        .WithMany()
+                        .HasForeignKey("GroupId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
                 });
 #pragma warning restore 612, 618
         }

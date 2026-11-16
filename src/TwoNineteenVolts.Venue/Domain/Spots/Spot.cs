@@ -1,6 +1,6 @@
 namespace TwoNineteenVolts.Venue.Domain.Spots;
 
-public class Spot(string code, string name, int? deviceId, int? channel, DateTime createdAt)
+public class Spot(string code, string name, int groupId, int? deviceId, int? channel, DateTime createdAt)
 {
     public int Id { get; private set; }
 
@@ -9,6 +9,8 @@ public class Spot(string code, string name, int? deviceId, int? channel, DateTim
     public string Name { get; private set; } = name;
 
     public string NameKey { get; private set; } = name.ToUpperInvariant();
+
+    public int GroupId { get; private set; } = groupId;
 
     public int? DeviceId { get; private set; } = deviceId;
 
@@ -25,6 +27,8 @@ public class Spot(string code, string name, int? deviceId, int? channel, DateTim
         Name = name;
         NameKey = name.ToUpperInvariant();
     }
+
+    public void MoveTo(int groupId) => GroupId = groupId;
 
     public void MapTo(int deviceId, int channel)
     {

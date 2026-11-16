@@ -4,6 +4,8 @@ public record SpotResponse(
     int Id,
     string Code,
     string Name,
+    int GroupId,
+    string GroupName,
     int? DeviceId,
     string? DeviceName,
     int? Channel,

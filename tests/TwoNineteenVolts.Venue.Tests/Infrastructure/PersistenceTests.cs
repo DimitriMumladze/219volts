@@ -5,6 +5,7 @@ using TwoNineteenVolts.Venue.Domain.Devices;
 using TwoNineteenVolts.Venue.Domain.Spots;
 using TwoNineteenVolts.Venue.Domain.Users;
 using TwoNineteenVolts.Venue.Infrastructure.Data;
+using TwoNineteenVolts.Venue.Tests.Groups;
 
 namespace TwoNineteenVolts.Venue.Tests.Infrastructure;
 
@@ -52,7 +53,8 @@ public class PersistenceTests
             await db.SaveChangesAsync();
         }
 
-        var spot = new Spot("k7m2qx", "Billiard 1", device.Id, 5, CreatedAt);
+        var group = await TestGroups.DefaultAsync(factory);
+        var spot = new Spot("k7m2qx", "Billiard 1", group, device.Id, 5, CreatedAt);
         using (var scope = factory.Services.CreateScope())
         {
             var db = scope.ServiceProvider.GetRequiredService<VenueDbContext>();

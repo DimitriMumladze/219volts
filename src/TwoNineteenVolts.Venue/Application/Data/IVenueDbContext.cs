@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
 using TwoNineteenVolts.Venue.Domain.Audit;
 using TwoNineteenVolts.Venue.Domain.Devices;
+using TwoNineteenVolts.Venue.Domain.Groups;
 using TwoNineteenVolts.Venue.Domain.Spots;
 using TwoNineteenVolts.Venue.Domain.Users;
 
@@ -16,6 +17,8 @@ public interface IVenueDbContext
     DbSet<Device> Devices { get; }
 
     DbSet<Spot> Spots { get; }
+
+    DbSet<Group> Groups { get; }
 
     DatabaseFacade Database { get; }
 
