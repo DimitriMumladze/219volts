@@ -36,6 +36,13 @@ public class FakeRelayDriver(DeviceKind kind) : IRelayDriver
     public async Task<Result<IReadOnlyList<bool>>> ReadAllAsync(Device device, CancellationToken cancellationToken)
     {
         Record($"read-all {device.Id}");
+        var states = StatesOf(device);
+        bool[] answer;
+        lock (_lock)
+        {
+            answer = [.. states];
+        }
+
         if (Gate is not null)
         {
             await Gate.Task;
@@ -46,9 +53,7 @@ public class FakeRelayDriver(DeviceKind kind) : IRelayDriver
             return Result<IReadOnlyList<bool>>.Fail(Error);
         }
 
-        var states = StatesOf(device);
-        bool[] copy = [.. states];
-        return Result<IReadOnlyList<bool>>.Ok(copy);
+        return Result<IReadOnlyList<bool>>.Ok(answer);
     }
 
     public Task<Result<bool>> ReadAsync(Device device, int channel, CancellationToken cancellationToken)

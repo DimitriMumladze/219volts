@@ -5,6 +5,7 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Testing;
 using TwoNineteenVolts.Venue.Application.Audit;
 using TwoNineteenVolts.Venue.Application.Devices;
+using TwoNineteenVolts.Venue.Application.Events;
 using TwoNineteenVolts.Venue.Application.Spots;
 using TwoNineteenVolts.Venue.Common;
 using TwoNineteenVolts.Venue.Domain.Audit;
@@ -13,6 +14,7 @@ using TwoNineteenVolts.Venue.Domain.Spots;
 using TwoNineteenVolts.Venue.Domain.Users;
 using TwoNineteenVolts.Venue.Infrastructure.Data;
 using TwoNineteenVolts.Venue.Tests.Devices;
+using TwoNineteenVolts.Venue.Tests.Events;
 
 namespace TwoNineteenVolts.Venue.Tests.Spots;
 
@@ -333,6 +335,48 @@ public class SpotServiceTests
         Assert.False(stateAfterOff);
         Assert.Equal([$"set {panel}/3 on", $"read {panel}/3", $"set {panel}/3 off", $"read {panel}/3"], factory.Waveshare.Calls);
         Assert.Equal([AuditActions.SpotSwitchedOn, AuditActions.SpotSwitchedOff], actions);
+    }
+
+    [Fact]
+    public async Task Spot_actions_publish_spot_events()
+    {
+        using var factory = new VenueAppFactory();
+        var panel = await AddPanelAsync(factory);
+        var created = await UseServiceAsync(factory, Support, spots => spots.CreateAsync("Billiard 1", panel, 3));
+        var id = created.Value!.Id;
+
+        await UseServiceAsync(factory, Support, spots => spots.UpdateAsync(id, "Billiard 1", panel, 3));
+        await UseServiceAsync(factory, Support, spots => spots.UpdateAsync(id, "Billiard A", panel, 3));
+        await UseServiceAsync(factory, Support, spots => spots.NewCodeAsync(id));
+        await UseServiceAsync(factory, Staff, spots => spots.SwitchAsync(id, true));
+        await UseServiceAsync(factory, Support, spots => spots.ArchiveAsync(id));
+
+        var published = PublishedEvents.Take(factory);
+        var spotEvents = published.OfType<ISpotEvent>().ToList();
+        List<ISpotEvent> expected =
+        [
+            new SpotCreated(id),
+            new SpotUpdated(id),
+            new SpotCodeChanged(id),
+            new SpotSwitched(id, true),
+            new SpotArchived(id)
+        ];
+        Assert.Equal(expected, spotEvents);
+    }
+
+    [Fact]
+    public async Task Failed_switch_publishes_no_spot_event()
+    {
+        using var factory = new VenueAppFactory();
+        var panel = await AddPanelAsync(factory);
+        var id = await TestSpots.AddAsync(factory, "Billiard 1", panel, 3);
+        factory.Waveshare.Error = DeviceError.NoAnswer;
+
+        await UseServiceAsync(factory, Staff, spots => spots.SwitchAsync(id, true));
+
+        var published = PublishedEvents.Take(factory);
+        var spotEvents = published.OfType<ISpotEvent>().ToList();
+        Assert.Empty(spotEvents);
     }
 
     [Fact]

@@ -1,8 +1,9 @@
 using Microsoft.Extensions.Logging;
+using TwoNineteenVolts.Venue.Application.Events;
 
 namespace TwoNineteenVolts.Venue.Application.Devices;
 
-public class DeviceStatuses(TimeProvider time, ILogger<DeviceStatuses> logger)
+public class DeviceStatuses(TimeProvider time, IEventQueue events, ILogger<DeviceStatuses> logger)
 {
     private const int MissesBeforeOffline = 3;
 
@@ -45,8 +46,14 @@ public class DeviceStatuses(TimeProvider time, ILogger<DeviceStatuses> logger)
         lock (_lock)
         {
             var entry = GetOrCreateEntry(deviceId);
+            var before = entry.Channels;
             var known = states.Select(state => (bool?)state);
             entry.Channels = [.. known];
+            for (var index = 0; index < entry.Channels.Length; index++)
+            {
+                var old = ValueAt(before, index);
+                PublishIfChanged(deviceId, index + 1, old, entry.Channels[index]);
+            }
         }
     }
 
@@ -63,7 +70,9 @@ public class DeviceStatuses(TimeProvider time, ILogger<DeviceStatuses> logger)
             var channels = entry.Channels;
             if (channel >= 1 && channel <= channels.Length)
             {
+                var old = channels[channel - 1];
                 channels[channel - 1] = on;
+                PublishIfChanged(deviceId, channel, old, on);
             }
         }
     }
@@ -80,7 +89,9 @@ public class DeviceStatuses(TimeProvider time, ILogger<DeviceStatuses> logger)
             var channels = entry.Channels;
             if (channels is not null && channel >= 1 && channel <= channels.Length)
             {
+                var old = channels[channel - 1];
                 channels[channel - 1] = null;
+                PublishIfChanged(deviceId, channel, old, null);
             }
         }
     }
@@ -101,9 +112,14 @@ public class DeviceStatuses(TimeProvider time, ILogger<DeviceStatuses> logger)
             logger.LogInformation("Device {DeviceId} is back online", deviceId);
         }
 
+        var wasOnline = entry.State == State.Online;
         entry.State = State.Online;
         entry.Misses = 0;
         entry.LastSeen = time.GetUtcNow().UtcDateTime;
+        if (!wasOnline)
+        {
+            events.Publish(new DeviceWentOnline(deviceId));
+        }
     }
 
     private void RecordMiss(int deviceId, Entry entry)
@@ -114,7 +130,26 @@ public class DeviceStatuses(TimeProvider time, ILogger<DeviceStatuses> logger)
             logger.LogWarning("Device {DeviceId} is offline after {Misses} missed checks", deviceId, entry.Misses);
             entry.State = State.Offline;
             entry.Channels = null;
+            events.Publish(new DeviceWentOffline(deviceId));
         }
+    }
+
+    private void PublishIfChanged(int deviceId, int channel, bool? old, bool? current)
+    {
+        if (old != current)
+        {
+            events.Publish(new ChannelStateChanged(deviceId, channel, current));
+        }
+    }
+
+    private static bool? ValueAt(bool?[]? channels, int index)
+    {
+        if (channels is null || index >= channels.Length)
+        {
+            return null;
+        }
+
+        return channels[index];
     }
 
     private static bool?[]? CopyOf(bool?[]? channels)

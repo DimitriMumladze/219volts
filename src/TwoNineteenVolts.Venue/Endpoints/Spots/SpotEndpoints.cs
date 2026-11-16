@@ -18,6 +18,7 @@ public static class SpotEndpoints
         var group = app.MapGroup("/api/spots").RequireAuthorization(Policies.Staff);
 
         group.MapGet("/", GetSpotsAsync);
+        group.MapGet("/{id:int}", GetSpotAsync);
         group.MapPost("/", CreateAsync).RequireAuthorization(Policies.Support);
         group.MapPut("/{id:int}", UpdateAsync).RequireAuthorization(Policies.Manager);
         group.MapPost("/{id:int}/new-code", NewCodeAsync).RequireAuthorization(Policies.Support);
@@ -42,6 +43,25 @@ public static class SpotEndpoints
 
         var responses = visible.Select(s => ToResponse(s, devices, statuses)).ToList();
         return TypedResults.Ok(responses);
+    }
+
+    private static async Task<IResult> GetSpotAsync(int id, IVenueDbContext db, DeviceStatuses statuses, ICurrentActor currentActor)
+    {
+        var actor = currentActor.Get();
+        var spot = await db.Spots.SingleOrDefaultAsync(s => s.Id == id);
+        if (spot is null)
+        {
+            return ToProblem(SpotError.NotFound);
+        }
+
+        var hidden = !spot.IsMapped || spot.IsArchived;
+        if (hidden && actor.Role != Role.Support)
+        {
+            return ToProblem(SpotError.NotFound);
+        }
+
+        var response = await ToResponseAsync(spot, db, statuses);
+        return TypedResults.Ok(response);
     }
 
     private static async Task<IResult> CreateAsync(CreateSpotRequest request, SpotService spots, IVenueDbContext db, DeviceStatuses statuses)

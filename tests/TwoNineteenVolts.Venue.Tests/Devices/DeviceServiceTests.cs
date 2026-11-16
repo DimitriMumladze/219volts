@@ -6,6 +6,7 @@ using TwoNineteenVolts.Venue.Domain.Audit;
 using TwoNineteenVolts.Venue.Domain.Devices;
 using TwoNineteenVolts.Venue.Domain.Spots;
 using TwoNineteenVolts.Venue.Infrastructure.Data;
+using TwoNineteenVolts.Venue.Tests.Events;
 
 namespace TwoNineteenVolts.Venue.Tests.Devices;
 
@@ -294,6 +295,42 @@ public class DeviceServiceTests
         var result = await UseServiceAsync(factory, devices => devices.RegisterAsync(candidate, Waveshare, "192.168.1.21", 502, 16));
 
         Assert.Equal(DeviceError.DuplicateName, result.Error);
+    }
+
+    [Fact]
+    public async Task Register_update_delete_publish_device_events()
+    {
+        using var factory = new VenueAppFactory();
+        var registered = await UseServiceAsync(factory, devices => devices.RegisterAsync("Panel 1", Waveshare, "192.168.1.20", 502, 16));
+        var id = registered.Value!.Id;
+        var spot = await AddSpotAsync(factory, "k7m2qx", "Billiard 1", id, 1);
+        var afterRegister = PublishedEvents.Take(factory);
+
+        await UseServiceAsync(factory, devices => devices.UpdateAsync(id, "Panel 1", "192.168.1.20", 502));
+        var afterNoChange = PublishedEvents.Take(factory);
+        await UseServiceAsync(factory, devices => devices.UpdateAsync(id, "Panel A", "192.168.1.20", 502));
+        var afterUpdate = PublishedEvents.Take(factory);
+        await UseServiceAsync(factory, devices => devices.DeleteAsync(id));
+        var afterDelete = PublishedEvents.Take(factory);
+
+        Assert.Equal([new DeviceRegistered(id)], afterRegister);
+        Assert.Empty(afterNoChange);
+        Assert.Equal([new DeviceUpdated(id)], afterUpdate);
+        var single = Assert.Single(afterDelete);
+        var deleted = Assert.IsType<DeviceDeleted>(single);
+        Assert.Equal(id, deleted.DeviceId);
+        Assert.Equal([spot], deleted.UnmappedSpotIds);
+    }
+
+    [Fact]
+    public async Task Failed_register_publishes_nothing()
+    {
+        using var factory = new VenueAppFactory();
+
+        await UseServiceAsync(factory, devices => devices.RegisterAsync("", Waveshare, "192.168.1.20", 502, 16));
+
+        var events = PublishedEvents.Take(factory);
+        Assert.Empty(events);
     }
 
 

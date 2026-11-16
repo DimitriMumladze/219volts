@@ -3,6 +3,7 @@ using System.Net.Sockets;
 using Microsoft.EntityFrameworkCore;
 using TwoNineteenVolts.Venue.Application.Audit;
 using TwoNineteenVolts.Venue.Application.Data;
+using TwoNineteenVolts.Venue.Application.Events;
 using TwoNineteenVolts.Venue.Common;
 using TwoNineteenVolts.Venue.Domain.Audit;
 using TwoNineteenVolts.Venue.Domain.Devices;
@@ -14,8 +15,10 @@ public class DeviceService(
     IVenueDbContext db,
     RelayDrivers drivers,
     DeviceStatuses statuses,
+    BoardGates gates,
     IAuditLog audit,
     ICurrentActor currentActor,
+    IEventQueue events,
     TimeProvider time)
 {
     private const int MinPort = 1;
@@ -51,6 +54,7 @@ public class DeviceService(
         await db.SaveChangesAsync();
         await transaction.CommitAsync();
 
+        events.Publish(new DeviceRegistered(device.Id));
         return Result<Device>.Ok(device);
     }
 
@@ -92,6 +96,7 @@ public class DeviceService(
             statuses.Remove(id);
         }
 
+        events.Publish(new DeviceUpdated(id));
         return Result<Device>.Ok(device);
     }
 
@@ -123,6 +128,9 @@ public class DeviceService(
         await transaction.CommitAsync();
 
         statuses.Remove(id);
+        gates.Remove(id);
+        var unmappedSpotIds = spots.Select(s => s.Id).ToList();
+        events.Publish(new DeviceDeleted(id, unmappedSpotIds));
         return Result<Device>.Ok(device);
     }
 

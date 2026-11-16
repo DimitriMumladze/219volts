@@ -3,6 +3,7 @@ using Microsoft.Extensions.Logging;
 using TwoNineteenVolts.Venue.Application.Audit;
 using TwoNineteenVolts.Venue.Application.Data;
 using TwoNineteenVolts.Venue.Application.Devices;
+using TwoNineteenVolts.Venue.Application.Events;
 using TwoNineteenVolts.Venue.Common;
 using TwoNineteenVolts.Venue.Domain.Audit;
 using TwoNineteenVolts.Venue.Domain.Devices;
@@ -13,11 +14,11 @@ namespace TwoNineteenVolts.Venue.Application.Spots;
 
 public class SpotService(
     IVenueDbContext db,
-    RelayDrivers drivers,
-    DeviceStatuses statuses,
+    BoardGate gate,
     ISpotCodeGenerator codes,
     IAuditLog audit,
     ICurrentActor currentActor,
+    IEventQueue events,
     TimeProvider time,
     ILogger<SpotService> logger)
 {
@@ -61,6 +62,7 @@ public class SpotService(
         await db.SaveChangesAsync();
         await transaction.CommitAsync();
 
+        events.Publish(new SpotCreated(spot.Id));
         return Result<Spot>.Ok(spot);
     }
 
@@ -124,6 +126,7 @@ public class SpotService(
         audit.Record(actor, AuditActions.SpotUpdated, target, changes);
         await db.SaveChangesAsync();
 
+        events.Publish(new SpotUpdated(spot.Id));
         return Result<Spot>.Ok(spot);
     }
 
@@ -153,6 +156,7 @@ public class SpotService(
         audit.Record(actor, AuditActions.SpotCodeChanged, target, $"{oldCode} → {code}");
         await db.SaveChangesAsync();
 
+        events.Publish(new SpotCodeChanged(spot.Id));
         return Result<Spot>.Ok(spot);
     }
 
@@ -176,25 +180,16 @@ public class SpotService(
         }
 
         var device = await db.Devices.SingleAsync(d => d.Id == deviceId);
-        var driver = drivers.For(device.Kind);
-
-        var set = await SetAsync(driver, device, channel, on);
-        if (set.IsFailure)
+        var switched = await gate.RunAsync(device, board => board.SwitchAsync(channel, on));
+        if (switched.IsFailure)
         {
-            return await FailSwitchAsync(spot, deviceId, channel, actor, set.Error);
-        }
-
-        var read = await ReadAsync(driver, device, channel);
-        if (read.IsFailure)
-        {
-            return await FailSwitchAsync(spot, deviceId, channel, actor, read.Error);
+            return await FailSwitchAsync(spot, actor, switched.Error);
         }
 
         var target = AuditTarget.Spot(spot.Id);
-        statuses.StoreChannel(deviceId, device.ChannelCount, channel, read.Value);
-        if (read.Value != on)
+        if (switched.Value != on)
         {
-            logger.LogWarning("Switching spot {SpotId} failed: the relay reads {State}", spot.Id, read.Value);
+            logger.LogWarning("Switching spot {SpotId} failed: the relay reads {State}", spot.Id, switched.Value);
             audit.Record(actor, AuditActions.SpotSwitchFailed, target, MismatchReason);
             await db.SaveChangesAsync();
             return Fail(SpotError.StateMismatch);
@@ -205,6 +200,7 @@ public class SpotService(
         await db.SaveChangesAsync();
         logger.LogInformation("Spot {SpotId} switched {State} by {Actor}", spot.Id, on ? "on" : "off", actor.Name);
 
+        events.Publish(new SpotSwitched(spot.Id, on));
         return Result<Spot>.Ok(spot);
     }
 
@@ -227,6 +223,7 @@ public class SpotService(
         audit.Record(actor, AuditActions.SpotArchived, target);
         await db.SaveChangesAsync();
 
+        events.Publish(new SpotArchived(spot.Id));
         return Result<Spot>.Ok(spot);
     }
 
@@ -248,26 +245,9 @@ public class SpotService(
         return spot;
     }
 
-    private async Task<Result<bool>> SetAsync(IRelayDriver driver, Device device, int channel, bool on)
-    {
-        using var timeout = new CancellationTokenSource(RelayCall.Timeout, time);
-        var result = await driver.SetAsync(device, channel, on, timeout.Token);
-        statuses.RecordOutcome(device.Id, result.Error);
-        return result;
-    }
-
-    private async Task<Result<bool>> ReadAsync(IRelayDriver driver, Device device, int channel)
-    {
-        using var timeout = new CancellationTokenSource(RelayCall.Timeout, time);
-        var result = await driver.ReadAsync(device, channel, timeout.Token);
-        statuses.RecordOutcome(device.Id, result.Error);
-        return result;
-    }
-
-    private async Task<Result<Spot>> FailSwitchAsync(Spot spot, int deviceId, int channel, AuditActor actor, string error)
+    private async Task<Result<Spot>> FailSwitchAsync(Spot spot, AuditActor actor, string error)
     {
         var reason = ReasonFor(error);
-        statuses.ForgetChannel(deviceId, channel);
         logger.LogWarning("Switching spot {SpotId} failed: {Reason}", spot.Id, reason);
 
         var target = AuditTarget.Spot(spot.Id);

@@ -1,15 +1,47 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
+using TwoNineteenVolts.Venue.Application.Auth;
 using TwoNineteenVolts.Venue.Infrastructure.Auth;
+using TwoNineteenVolts.Venue.Tests.Events;
 
 namespace TwoNineteenVolts.Venue.Tests.Auth;
 
 public class InMemoryTicketStoreTests
 {
+    private readonly RecordingEventQueue _events = new();
+
+    [Fact]
+    public async Task Remove_publishes_login_ended()
+    {
+        var store = new InMemoryTicketStore(_events);
+        var ticket = TicketFor(7, "Nino");
+        var key = await store.StoreAsync(ticket);
+
+        await store.RemoveAsync(key);
+        await store.RemoveAsync(key);
+
+        Assert.Equal([new LoginEnded(7)], _events.Events);
+    }
+
+    [Fact]
+    public async Task Ending_a_users_sessions_publishes_login_ended_once()
+    {
+        var store = new InMemoryTicketStore(_events);
+        var tabletTicket = TicketFor(7, "Nino");
+        var counterTicket = TicketFor(7, "Nino");
+        await store.StoreAsync(tabletTicket);
+        await store.StoreAsync(counterTicket);
+
+        store.EndSessionsFor(7);
+        store.EndSessionsFor(8);
+
+        Assert.Equal([new LoginEnded(7)], _events.Events);
+    }
+
     [Fact]
     public async Task Store_then_retrieve_returns_ticket()
     {
-        var store = new InMemoryTicketStore();
+        var store = new InMemoryTicketStore(_events);
         var ticket = TicketFor(7, "Nino");
 
         var key = await store.StoreAsync(ticket);
@@ -21,7 +53,7 @@ public class InMemoryTicketStoreTests
     [Fact]
     public async Task Each_session_gets_its_own_key()
     {
-        var store = new InMemoryTicketStore();
+        var store = new InMemoryTicketStore(_events);
 
         var firstTicket = TicketFor(7, "Nino");
         var secondTicket = TicketFor(7, "Nino");
@@ -34,7 +66,7 @@ public class InMemoryTicketStoreTests
     [Fact]
     public async Task EndSessionsFor_removes_all_sessions_of_that_user_only()
     {
-        var store = new InMemoryTicketStore();
+        var store = new InMemoryTicketStore(_events);
         var ninoTabletTicket = TicketFor(7, "Nino");
         var ninoCounterTicket = TicketFor(7, "Nino");
         var gioTicket = TicketFor(8, "Gio");
@@ -55,7 +87,7 @@ public class InMemoryTicketStoreTests
     [Fact]
     public async Task Remove_ends_the_session()
     {
-        var store = new InMemoryTicketStore();
+        var store = new InMemoryTicketStore(_events);
         var ticket = TicketFor(7, "Nino");
         var key = await store.StoreAsync(ticket);
 
@@ -68,7 +100,7 @@ public class InMemoryTicketStoreTests
     [Fact]
     public async Task Renew_does_not_bring_back_an_ended_session()
     {
-        var store = new InMemoryTicketStore();
+        var store = new InMemoryTicketStore(_events);
         var ticket = TicketFor(7, "Nino");
         var key = await store.StoreAsync(ticket);
         store.EndSessionsFor(7);
@@ -82,7 +114,7 @@ public class InMemoryTicketStoreTests
     [Fact]
     public async Task Renew_replaces_the_ticket_of_an_existing_session()
     {
-        var store = new InMemoryTicketStore();
+        var store = new InMemoryTicketStore(_events);
         var original = TicketFor(7, "Nino");
         var key = await store.StoreAsync(original);
         var renewed = TicketFor(7, "Nino");

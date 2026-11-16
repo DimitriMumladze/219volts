@@ -12,6 +12,8 @@ public static class DevicesModule
             .ValidateOnStart();
 
         services.AddSingleton<DeviceStatuses>();
+        services.AddSingleton<BoardGates>();
+        services.AddScoped<BoardGate>();
         services.AddScoped<RelayDrivers>();
         services.AddScoped<DeviceService>();
         services.AddHttpClient<ShellyRelayDriver>();

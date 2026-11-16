@@ -2,6 +2,8 @@ using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Testing;
 using Microsoft.Extensions.Time.Testing;
 using TwoNineteenVolts.Venue.Application.Devices;
+using TwoNineteenVolts.Venue.Application.Events;
+using TwoNineteenVolts.Venue.Tests.Events;
 
 namespace TwoNineteenVolts.Venue.Tests.Devices;
 
@@ -11,6 +13,68 @@ public class DeviceStatusesTests
 
     private readonly FakeTimeProvider _time = new(new DateTimeOffset(2026, 11, 14, 10, 0, 0, TimeSpan.Zero));
     private readonly FakeLogger<DeviceStatuses> _logger = new();
+    private readonly RecordingEventQueue _events = new();
+
+    [Fact]
+    public void First_answer_publishes_went_online()
+    {
+        var statuses = NewStatuses();
+
+        statuses.RecordOutcome(DeviceId, error: null);
+        statuses.RecordOutcome(DeviceId, error: null);
+
+        Assert.Equal([new DeviceWentOnline(DeviceId)], _events.Events);
+    }
+
+    [Fact]
+    public void Third_miss_publishes_went_offline_once()
+    {
+        var statuses = NewStatuses();
+        statuses.RecordOutcome(DeviceId, error: null);
+        _events.Clear();
+
+        GoOffline(statuses);
+        statuses.RecordOutcome(DeviceId, DeviceError.NoAnswer);
+
+        Assert.Equal([new DeviceWentOffline(DeviceId)], _events.Events);
+    }
+
+    [Fact]
+    public void Same_channels_again_publish_nothing()
+    {
+        var statuses = NewStatuses();
+        statuses.RecordOutcome(DeviceId, error: null);
+        statuses.StoreChannels(DeviceId, [true, false]);
+        _events.Clear();
+
+        statuses.RecordOutcome(DeviceId, error: null);
+        statuses.StoreChannels(DeviceId, [true, false]);
+
+        Assert.Empty(_events.Events);
+    }
+
+    [Fact]
+    public void Changed_channel_publishes_channel_state_changed()
+    {
+        var statuses = NewStatuses();
+        statuses.RecordOutcome(DeviceId, error: null);
+        _events.Clear();
+
+        statuses.StoreChannels(DeviceId, [true, false]);
+        statuses.StoreChannels(DeviceId, [true, true]);
+        statuses.StoreChannel(DeviceId, 2, 1, false);
+        statuses.ForgetChannel(DeviceId, 2);
+
+        List<IVenueEvent> expected =
+        [
+            new ChannelStateChanged(DeviceId, 1, true),
+            new ChannelStateChanged(DeviceId, 2, false),
+            new ChannelStateChanged(DeviceId, 2, true),
+            new ChannelStateChanged(DeviceId, 1, false),
+            new ChannelStateChanged(DeviceId, 2, null)
+        ];
+        Assert.Equal(expected, _events.Events);
+    }
 
     [Fact]
     public void Unknown_device_is_offline_with_unknown_states()
@@ -221,7 +285,7 @@ public class DeviceStatusesTests
     }
 
 
-    private DeviceStatuses NewStatuses() => new(_time, _logger);
+    private DeviceStatuses NewStatuses() => new(_time, _events, _logger);
 
     private static void GoOffline(DeviceStatuses statuses)
     {

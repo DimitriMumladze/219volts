@@ -87,6 +87,34 @@ public class SpotEndpointTests
     }
 
     [Fact]
+    public async Task Get_one_spot_returns_same_shape_as_list()
+    {
+        using var factory = new VenueAppFactory();
+        var panel = await AddPanelAsync(factory);
+        MarkKnown(factory, panel);
+        var billiard = await TestSpots.AddAsync(factory, "Billiard 1", panel, 2);
+        using var client = await StaffClientAsync(factory);
+
+        var list = (await client.GetFromJsonAsync<List<SpotDto>>("/api/spots"))!;
+        var one = await client.GetFromJsonAsync<SpotDto>($"/api/spots/{billiard}");
+
+        var onlySpot = list.Single();
+        Assert.Equal(onlySpot, one);
+    }
+
+    [Fact]
+    public async Task Staff_get_unmapped_spot_is_404()
+    {
+        using var factory = new VenueAppFactory();
+        var tennis = await TestSpots.AddAsync(factory, "Tennis 1", null, null);
+        using var client = await StaffClientAsync(factory);
+
+        var response = await client.GetAsync($"/api/spots/{tennis}");
+
+        await AssertProblemAsync(response, HttpStatusCode.NotFound, SpotError.NotFound);
+    }
+
+    [Fact]
     public async Task Support_sees_all_spots_with_archived_marked()
     {
         using var factory = new VenueAppFactory();

@@ -3,10 +3,11 @@ using System.Security.Cryptography;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
 using TwoNineteenVolts.Venue.Application.Auth;
+using TwoNineteenVolts.Venue.Application.Events;
 
 namespace TwoNineteenVolts.Venue.Infrastructure.Auth;
 
-public class InMemoryTicketStore : ITicketStore, ISessionRegistry
+public class InMemoryTicketStore(IEventQueue events) : ITicketStore, ISessionRegistry
 {
     private const int KeySizeBytes = 32;
 
@@ -38,18 +39,29 @@ public class InMemoryTicketStore : ITicketStore, ISessionRegistry
 
     public Task RemoveAsync(string key)
     {
-        _sessions.TryRemove(key, out _);
+        if (_sessions.TryRemove(key, out var ticket))
+        {
+            var userId = UserIdOf(ticket);
+            events.Publish(new LoginEnded(userId));
+        }
+
         return Task.CompletedTask;
     }
 
     public void EndSessionsFor(int userId)
     {
+        var ended = false;
         foreach (var session in _sessions)
         {
-            if (UserIdOf(session.Value) == userId)
+            if (UserIdOf(session.Value) == userId && _sessions.TryRemove(session.Key, out _))
             {
-                _sessions.TryRemove(session.Key, out _);
+                ended = true;
             }
+        }
+
+        if (ended)
+        {
+            events.Publish(new LoginEnded(userId));
         }
     }
 
