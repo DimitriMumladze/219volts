@@ -1,7 +1,8 @@
-using Microsoft.Extensions.Logging;
 using TwoNineteenVolts.Venue.Application.Audit;
+using TwoNineteenVolts.Venue.Application.Audit.Contracts;
 using TwoNineteenVolts.Venue.Application.Data;
-using TwoNineteenVolts.Venue.Application.Devices;
+using TwoNineteenVolts.Venue.Application.Devices.Contracts;
+using TwoNineteenVolts.Venue.Application.Spots.Contracts;
 using TwoNineteenVolts.Venue.Domain.Audit;
 
 namespace TwoNineteenVolts.Venue.Application.Spots;

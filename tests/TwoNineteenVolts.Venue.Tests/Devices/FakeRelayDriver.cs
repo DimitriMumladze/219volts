@@ -1,4 +1,4 @@
-using TwoNineteenVolts.Venue.Application.Devices;
+using TwoNineteenVolts.Venue.Application.Devices.Contracts;
 using TwoNineteenVolts.Venue.Common;
 using TwoNineteenVolts.Venue.Domain.Devices;
 

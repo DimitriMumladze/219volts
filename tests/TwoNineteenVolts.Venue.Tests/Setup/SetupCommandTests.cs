@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using TwoNineteenVolts.Venue.Application.Auth;
+using TwoNineteenVolts.Venue.Application.Auth.Contracts;
 using TwoNineteenVolts.Venue.Commands.Setup;
 using TwoNineteenVolts.Venue.Domain.Audit;
 using TwoNineteenVolts.Venue.Domain.Users;

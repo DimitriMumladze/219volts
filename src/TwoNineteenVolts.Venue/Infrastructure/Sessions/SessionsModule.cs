@@ -1,5 +1,6 @@
 using TwoNineteenVolts.Venue.Application.Events;
 using TwoNineteenVolts.Venue.Application.Sessions;
+using TwoNineteenVolts.Venue.Application.Sessions.Contracts;
 
 namespace TwoNineteenVolts.Venue.Infrastructure.Sessions;
 

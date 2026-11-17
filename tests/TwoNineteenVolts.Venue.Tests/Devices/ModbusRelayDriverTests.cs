@@ -2,7 +2,7 @@ using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
 using FluentModbus;
-using TwoNineteenVolts.Venue.Application.Devices;
+using TwoNineteenVolts.Venue.Application.Devices.Contracts;
 using TwoNineteenVolts.Venue.Domain.Devices;
 using TwoNineteenVolts.Venue.Infrastructure.Devices;
 

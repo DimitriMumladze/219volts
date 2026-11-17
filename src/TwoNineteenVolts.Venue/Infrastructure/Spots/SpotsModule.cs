@@ -1,4 +1,5 @@
 using TwoNineteenVolts.Venue.Application.Spots;
+using TwoNineteenVolts.Venue.Application.Spots.Contracts;
 
 namespace TwoNineteenVolts.Venue.Infrastructure.Spots;
 

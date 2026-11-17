@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.DependencyInjection;
 using TwoNineteenVolts.Venue.Application.Devices;
+using TwoNineteenVolts.Venue.Application.Devices.Contracts;
 using TwoNineteenVolts.Venue.Domain.Devices;
 using TwoNineteenVolts.Venue.Domain.Users;
 

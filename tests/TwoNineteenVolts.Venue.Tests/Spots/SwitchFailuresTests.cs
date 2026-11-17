@@ -1,8 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using TwoNineteenVolts.Venue.Application.Audit;
-using TwoNineteenVolts.Venue.Application.Devices;
+using TwoNineteenVolts.Venue.Application.Audit.Contracts;
+using TwoNineteenVolts.Venue.Application.Devices.Contracts;
 using TwoNineteenVolts.Venue.Application.Spots;
+using TwoNineteenVolts.Venue.Application.Spots.Contracts;
 using TwoNineteenVolts.Venue.Domain.Users;
 using TwoNineteenVolts.Venue.Infrastructure.Data;
 

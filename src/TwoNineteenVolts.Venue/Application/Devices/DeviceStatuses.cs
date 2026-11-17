@@ -1,4 +1,5 @@
-using Microsoft.Extensions.Logging;
+using TwoNineteenVolts.Venue.Application.Devices.Contracts;
+using TwoNineteenVolts.Venue.Application.Devices.Events;
 using TwoNineteenVolts.Venue.Application.Events;
 
 namespace TwoNineteenVolts.Venue.Application.Devices;

@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using TwoNineteenVolts.Venue.Application.Audit.Contracts;
 using TwoNineteenVolts.Venue.Application.Data;
 
 namespace TwoNineteenVolts.Venue.Application.Audit;

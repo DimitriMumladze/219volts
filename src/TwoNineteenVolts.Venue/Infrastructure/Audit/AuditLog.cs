@@ -1,4 +1,4 @@
-using TwoNineteenVolts.Venue.Application.Audit;
+using TwoNineteenVolts.Venue.Application.Audit.Contracts;
 using TwoNineteenVolts.Venue.Domain.Audit;
 using TwoNineteenVolts.Venue.Infrastructure.Data;
 

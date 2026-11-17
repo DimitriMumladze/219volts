@@ -1,5 +1,6 @@
 using Microsoft.Extensions.Localization;
 using TwoNineteenVolts.Venue.Application.Setup;
+using TwoNineteenVolts.Venue.Application.Setup.Contracts;
 using TwoNineteenVolts.Venue.Infrastructure.Data;
 using TwoNineteenVolts.Venue.Resources;
 

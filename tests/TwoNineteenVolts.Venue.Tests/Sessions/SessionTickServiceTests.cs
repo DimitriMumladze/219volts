@@ -1,11 +1,13 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
-using Microsoft.Extensions.Logging.Testing;
-using TwoNineteenVolts.Venue.Application.Audit;
+using TwoNineteenVolts.Venue.Application.Audit.Contracts;
 using TwoNineteenVolts.Venue.Application.Devices;
+using TwoNineteenVolts.Venue.Application.Devices.Contracts;
 using TwoNineteenVolts.Venue.Application.Events;
 using TwoNineteenVolts.Venue.Application.Sessions;
+using TwoNineteenVolts.Venue.Application.Sessions.Contracts;
+using TwoNineteenVolts.Venue.Application.Sessions.Events;
 using TwoNineteenVolts.Venue.Application.Spots;
 using TwoNineteenVolts.Venue.Common;
 using TwoNineteenVolts.Venue.Domain.Audit;

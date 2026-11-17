@@ -1,4 +1,5 @@
 using System.Security.Cryptography;
+using TwoNineteenVolts.Venue.Application.Spots.Contracts;
 
 namespace TwoNineteenVolts.Venue.Application.Spots;
 

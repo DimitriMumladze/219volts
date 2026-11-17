@@ -1,5 +1,6 @@
 using System.Globalization;
 using TwoNineteenVolts.Venue.Application.Sessions;
+using TwoNineteenVolts.Venue.Application.Sessions.Contracts;
 
 namespace TwoNineteenVolts.Venue.Tests.Sessions;
 

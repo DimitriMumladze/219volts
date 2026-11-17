@@ -1,8 +1,9 @@
 using Microsoft.EntityFrameworkCore;
 using TwoNineteenVolts.Venue.Application.Data;
-using TwoNineteenVolts.Venue.Application.Devices;
-using TwoNineteenVolts.Venue.Application.Sessions;
+using TwoNineteenVolts.Venue.Application.Devices.Contracts;
+using TwoNineteenVolts.Venue.Application.Sessions.Contracts;
 using TwoNineteenVolts.Venue.Application.Spots;
+using TwoNineteenVolts.Venue.Application.Spots.Contracts;
 
 namespace TwoNineteenVolts.Venue.Endpoints.Spots;
 

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using TwoNineteenVolts.Venue.Application.Data;
 using TwoNineteenVolts.Venue.Application.Users;
+using TwoNineteenVolts.Venue.Application.Users.Contracts;
 using TwoNineteenVolts.Venue.Common;
 using TwoNineteenVolts.Venue.Domain.Users;
 using TwoNineteenVolts.Venue.Infrastructure.Auth;

@@ -1,7 +1,7 @@
 using System.Net;
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.Mvc;
-using TwoNineteenVolts.Venue.Application.Groups;
+using TwoNineteenVolts.Venue.Application.Groups.Contracts;
 using TwoNineteenVolts.Venue.Domain.Users;
 
 namespace TwoNineteenVolts.Venue.Tests.Groups;

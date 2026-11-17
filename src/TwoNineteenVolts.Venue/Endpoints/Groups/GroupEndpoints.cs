@@ -1,7 +1,8 @@
 using Microsoft.EntityFrameworkCore;
-using TwoNineteenVolts.Venue.Application.Audit;
+using TwoNineteenVolts.Venue.Application.Audit.Contracts;
 using TwoNineteenVolts.Venue.Application.Data;
 using TwoNineteenVolts.Venue.Application.Groups;
+using TwoNineteenVolts.Venue.Application.Groups.Contracts;
 using TwoNineteenVolts.Venue.Common;
 using TwoNineteenVolts.Venue.Domain.Groups;
 using TwoNineteenVolts.Venue.Domain.Users;

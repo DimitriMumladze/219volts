@@ -1,4 +1,5 @@
 using TwoNineteenVolts.Venue.Application.Audit;
+using TwoNineteenVolts.Venue.Application.Sessions.Contracts;
 using TwoNineteenVolts.Venue.Common;
 
 namespace TwoNineteenVolts.Venue.Application.Sessions;

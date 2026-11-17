@@ -1,4 +1,5 @@
 using TwoNineteenVolts.Venue.Application.Devices;
+using TwoNineteenVolts.Venue.Application.Devices.Contracts;
 
 namespace TwoNineteenVolts.Venue.Infrastructure.Devices;
 

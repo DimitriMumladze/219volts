@@ -1,6 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using TwoNineteenVolts.Venue.Application.Data;
-using TwoNineteenVolts.Venue.Application.Devices;
+using TwoNineteenVolts.Venue.Application.Devices.Events;
 using TwoNineteenVolts.Venue.Application.Events;
 
 namespace TwoNineteenVolts.Venue.Application.Sessions;

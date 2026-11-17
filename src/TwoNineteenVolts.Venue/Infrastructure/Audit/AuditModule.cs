@@ -1,4 +1,5 @@
 using TwoNineteenVolts.Venue.Application.Audit;
+using TwoNineteenVolts.Venue.Application.Audit.Contracts;
 
 namespace TwoNineteenVolts.Venue.Infrastructure.Audit;
 

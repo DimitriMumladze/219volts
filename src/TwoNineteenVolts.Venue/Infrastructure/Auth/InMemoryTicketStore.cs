@@ -2,7 +2,8 @@ using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.Cookies;
-using TwoNineteenVolts.Venue.Application.Auth;
+using TwoNineteenVolts.Venue.Application.Auth.Contracts;
+using TwoNineteenVolts.Venue.Application.Auth.Events;
 using TwoNineteenVolts.Venue.Application.Events;
 
 namespace TwoNineteenVolts.Venue.Infrastructure.Auth;

@@ -1,7 +1,8 @@
 using Microsoft.AspNetCore.Authentication.Cookies;
 using Microsoft.Extensions.Options;
-using TwoNineteenVolts.Venue.Application.Audit;
+using TwoNineteenVolts.Venue.Application.Audit.Contracts;
 using TwoNineteenVolts.Venue.Application.Auth;
+using TwoNineteenVolts.Venue.Application.Auth.Contracts;
 using TwoNineteenVolts.Venue.Domain.Users;
 
 namespace TwoNineteenVolts.Venue.Infrastructure.Auth;

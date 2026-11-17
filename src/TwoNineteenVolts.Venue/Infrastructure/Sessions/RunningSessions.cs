@@ -1,5 +1,5 @@
 using Microsoft.EntityFrameworkCore;
-using TwoNineteenVolts.Venue.Application.Sessions;
+using TwoNineteenVolts.Venue.Application.Sessions.Contracts;
 using TwoNineteenVolts.Venue.Infrastructure.Data;
 
 namespace TwoNineteenVolts.Venue.Infrastructure.Sessions;

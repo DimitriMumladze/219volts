@@ -18,10 +18,10 @@ public class ArchitectureTests
         Application + ".Devices.DeviceGateway",
         Application + ".Devices.DeviceLocks",
         Application + ".Devices.OutletControl",
-        Application + ".Devices.DeviceStatus",
+        Application + ".Devices.Contracts.DeviceStatus",
         Application + ".Devices.DeviceStatuses",
         Application + ".Devices.RelayDrivers",
-        Application + ".Devices.IRelayDriver",
+        Application + ".Devices.Contracts.IRelayDriver",
         Application + ".Devices.RelayCall"
     ];
 

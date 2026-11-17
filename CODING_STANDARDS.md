@@ -199,10 +199,15 @@ TwoNineteenVolts.Venue/
     Users/           User.cs, Role.cs
     Audit/           AuditEntry.cs, AuditActions.cs
   Application/
-    Auth/            LoginService.cs, LoginThrottle.cs, IPinHasher.cs, PinFormat.cs, ISessionRegistry.cs, ...
-    Users/           UserService.cs, UserError.cs
-    Audit/           IAuditLog.cs, ICurrentActor.cs, AuditActor.cs, AuditReader.cs, ...
-    Setup/           SetupService.cs, ResetSupportService.cs, SetupError.cs, SecretGenerator.cs
+    Auth/            LoginService.cs, LoginThrottle.cs, PinFormat.cs
+      Contracts/     AuthError.cs, IPinHasher.cs, ISessionRegistry.cs, LoginResult.cs
+      Events/        LoginEnded.cs
+    Users/           UserService.cs
+      Contracts/     UserError.cs
+    Audit/           AuditReader.cs, AuditChanges.cs, AuditTarget.cs
+      Contracts/     IAuditLog.cs, ICurrentActor.cs, AuditActor.cs, ...
+    Setup/           SetupService.cs, ResetSupportService.cs, SecretGenerator.cs
+      Contracts/     SetupError.cs
     Data/            IVenueDbContext.cs
   Infrastructure/
     Auth/            AuthModule.cs, AuthOptions.cs, AuthClaims.cs, Policies.cs, PinHasher.cs, InMemoryTicketStore.cs, ...
@@ -252,6 +257,16 @@ Where does a new piece go? Ask what it needs:
 - A library, the database schema, the file system or the OS → `Infrastructure`.
 - HTTP (routes, status codes, JSON shapes) → `Endpoints`.
 - The command line (questions, answers, exit codes) → `Commands`.
+
+**Inside an `Application/<Feature>/` folder,** files are sorted by the kind of type they are:
+
+| Folder | Holds | Examples |
+|---|---|---|
+| the feature folder itself | Classes that do work: services and helpers with logic | `SessionService`, `SessionPricing`, `LoginThrottle`, `AuditTarget` |
+| `Contracts/` | Everything the workers take, return or need: interfaces, records, enums, error codes | `IDeviceGateway`, `Outlet`, `SpotView`, `LoginResult`, `SessionError` |
+| `Events/` | Events published after a change (records implementing `IVenueEvent`) | `SessionStarted`, `DeviceDeleted`, `LoginEnded` |
+
+A subfolder exists only when it has a file. Namespaces follow the folders (`TwoNineteenVolts.Venue.Application.Spots.Contracts`). `Application/Data/` and `Application/Events/` hold only shared interfaces, so they stay flat.
 
 **When a feature folder gets crowded,** first check whether it holds more than one feature. `Infrastructure/Auth/` once had 14 files covering sign-in, users, setup and the console; split into `Auth`, `Users` and `Setup`, it has 8. Only a folder that is still large after that gets subfolders by concern.
 

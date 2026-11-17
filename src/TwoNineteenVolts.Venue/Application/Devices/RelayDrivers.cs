@@ -1,3 +1,4 @@
+using TwoNineteenVolts.Venue.Application.Devices.Contracts;
 using TwoNineteenVolts.Venue.Domain.Devices;
 
 namespace TwoNineteenVolts.Venue.Application.Devices;

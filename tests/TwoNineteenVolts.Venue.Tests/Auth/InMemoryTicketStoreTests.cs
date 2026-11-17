@@ -1,6 +1,6 @@
 using System.Security.Claims;
 using Microsoft.AspNetCore.Authentication;
-using TwoNineteenVolts.Venue.Application.Auth;
+using TwoNineteenVolts.Venue.Application.Auth.Events;
 using TwoNineteenVolts.Venue.Infrastructure.Auth;
 using TwoNineteenVolts.Venue.Tests.Events;
 

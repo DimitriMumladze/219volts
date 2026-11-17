@@ -1,13 +1,13 @@
 using System.Reflection;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Localization;
-using TwoNineteenVolts.Venue.Application.Auth;
-using TwoNineteenVolts.Venue.Application.Devices;
-using TwoNineteenVolts.Venue.Application.Groups;
-using TwoNineteenVolts.Venue.Application.Sessions;
-using TwoNineteenVolts.Venue.Application.Setup;
-using TwoNineteenVolts.Venue.Application.Spots;
-using TwoNineteenVolts.Venue.Application.Users;
+using TwoNineteenVolts.Venue.Application.Auth.Contracts;
+using TwoNineteenVolts.Venue.Application.Devices.Contracts;
+using TwoNineteenVolts.Venue.Application.Groups.Contracts;
+using TwoNineteenVolts.Venue.Application.Sessions.Contracts;
+using TwoNineteenVolts.Venue.Application.Setup.Contracts;
+using TwoNineteenVolts.Venue.Application.Spots.Contracts;
+using TwoNineteenVolts.Venue.Application.Users.Contracts;
 using TwoNineteenVolts.Venue.Commands.Setup;
 using TwoNineteenVolts.Venue.Resources;
 
