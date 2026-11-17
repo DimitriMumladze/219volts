@@ -90,7 +90,8 @@ public class GroupService(
         group.Rename(cleanName);
         var actor = currentActor.Get();
         var target = AuditTarget.Group(id);
-        audit.Record(actor, AuditActions.GroupRenamed, target, $"{oldName} → {cleanName}");
+        var details = AuditChanges.Change(oldName, cleanName);
+        audit.Record(actor, AuditActions.GroupRenamed, target, details);
         await db.SaveChangesAsync();
         await transaction.CommitAsync();
 
@@ -128,7 +129,8 @@ public class GroupService(
         group.SetRate(rateTetri);
         var actor = currentActor.Get();
         var target = AuditTarget.Group(id);
-        audit.Record(actor, AuditActions.GroupRateChanged, target, $"{oldRate} → {newRate}");
+        var details = AuditChanges.Change(oldRate, newRate);
+        audit.Record(actor, AuditActions.GroupRateChanged, target, details);
         await db.SaveChangesAsync();
 
         events.Publish(new GroupRateChanged(id));

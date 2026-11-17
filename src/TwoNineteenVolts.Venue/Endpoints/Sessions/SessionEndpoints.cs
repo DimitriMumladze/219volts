@@ -1,3 +1,4 @@
+using TwoNineteenVolts.Venue.Application.Audit;
 using TwoNineteenVolts.Venue.Application.Data;
 using TwoNineteenVolts.Venue.Application.Devices;
 using TwoNineteenVolts.Venue.Application.Sessions;
@@ -26,30 +27,38 @@ public static class SessionEndpoints
         int id,
         SessionTimeRequest request,
         SessionService sessions,
+        SpotReader reader,
+        ICurrentActor currentActor,
         IVenueDbContext db,
-        IDeviceGateway devices,
-        SwitchOffWarnings warnings)
+        IDeviceGateway devices)
     {
         var result = await sessions.StartAsync(id, request.Minutes, request.Amount);
-        return await ToResultAsync(id, result, db, devices, warnings);
+        return await ToResultAsync(id, result, reader, currentActor, db, devices);
     }
 
     private static async Task<IResult> ExtendAsync(
         int id,
         SessionTimeRequest request,
         SessionService sessions,
+        SpotReader reader,
+        ICurrentActor currentActor,
         IVenueDbContext db,
-        IDeviceGateway devices,
-        SwitchOffWarnings warnings)
+        IDeviceGateway devices)
     {
         var result = await sessions.ExtendAsync(id, request.Minutes, request.Amount);
-        return await ToResultAsync(id, result, db, devices, warnings);
+        return await ToResultAsync(id, result, reader, currentActor, db, devices);
     }
 
-    private static async Task<IResult> StopAsync(int id, SessionService sessions, IVenueDbContext db, IDeviceGateway devices, SwitchOffWarnings warnings)
+    private static async Task<IResult> StopAsync(
+        int id,
+        SessionService sessions,
+        SpotReader reader,
+        ICurrentActor currentActor,
+        IVenueDbContext db,
+        IDeviceGateway devices)
     {
         var result = await sessions.StopAsync(id);
-        return await ToResultAsync(id, result, db, devices, warnings);
+        return await ToResultAsync(id, result, reader, currentActor, db, devices);
     }
 
     private static async Task<IResult> PriceAsync(int id, int minutes, SessionService sessions)
@@ -68,22 +77,16 @@ public static class SessionEndpoints
     private static async Task<IResult> ToResultAsync(
         int id,
         Result<Session> result,
+        SpotReader reader,
+        ICurrentActor currentActor,
         IVenueDbContext db,
-        IDeviceGateway devices,
-        SwitchOffWarnings warnings)
+        IDeviceGateway devices)
     {
         if (result.IsFailure)
         {
             return await SpotProblems.ForSpotAsync(result.Error, id, db, devices);
         }
 
-        var spot = await db.Spots.FindAsync(id);
-        if (spot is null)
-        {
-            return SpotProblems.ToProblem(SpotError.NotFound);
-        }
-
-        var response = await SpotResponses.BuildAsync(spot, db, devices, warnings);
-        return TypedResults.Ok(response);
+        return await SpotEndpoints.ViewResultAsync(id, reader, currentActor);
     }
 }

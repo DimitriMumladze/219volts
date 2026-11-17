@@ -77,7 +77,7 @@ public class DeviceService(
 
         var oldPort = device.Port.ToString();
         var newPort = port.ToString();
-        var changes = Changes(
+        var changes = AuditChanges.Fields(
             ("name", device.Name, cleanName),
             ("ip", device.IpAddress, ipAddress),
             ("port", oldPort, newPort));
@@ -177,15 +177,6 @@ public class DeviceService(
         IPAddress.TryParse(ipAddress, out var parsed)
         && parsed.AddressFamily == AddressFamily.InterNetwork
         && parsed.ToString() == ipAddress;
-
-    private static string Changes(params (string Field, string Old, string New)[] fields)
-    {
-        var changed = fields
-            .Where(f => f.Old != f.New)
-            .Select(f => $"{f.Field}: {f.Old} → {f.New}");
-
-        return string.Join("; ", changed);
-    }
 
     private static string UnmappedSpotsOf(List<Spot> spots)
     {

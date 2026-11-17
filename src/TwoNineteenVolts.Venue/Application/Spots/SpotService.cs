@@ -16,7 +16,7 @@ public class SpotService(
     IVenueDbContext db,
     IDeviceGateway devices,
     ISpotCodeGenerator codes,
-    VisibleSpots visibleSpots,
+    SpotReader reader,
     SwitchFailures failures,
     SessionService sessions,
     IRunningSessions runningSessions,
@@ -76,7 +76,7 @@ public class SpotService(
     public async Task<Result<Spot>> UpdateAsync(int id, string name, int groupId, int? deviceId, int? channel)
     {
         var actor = currentActor.Get();
-        var spot = await visibleSpots.FindAsync(id, actor);
+        var spot = await reader.FindVisibleAsync(id, actor);
         if (spot is null)
         {
             return Fail(SpotError.NotFound);
@@ -128,7 +128,7 @@ public class SpotService(
         var newDevice = ShowOrNone(deviceId);
         var oldChannel = ShowOrNone(spot.Channel);
         var newChannel = ShowOrNone(channel);
-        var changes = Changes(
+        var changes = AuditChanges.Fields(
             ("name", spot.Name, cleanName),
             ("group", oldGroup, newGroup),
             ("device", oldDevice, newDevice),
@@ -161,7 +161,7 @@ public class SpotService(
     public async Task<Result<Spot>> NewCodeAsync(int id)
     {
         var actor = currentActor.Get();
-        var spot = await visibleSpots.FindAsync(id, actor);
+        var spot = await reader.FindVisibleAsync(id, actor);
         if (spot is null)
         {
             return Fail(SpotError.NotFound);
@@ -181,7 +181,8 @@ public class SpotService(
         var oldCode = spot.Code;
         spot.ChangeCode(code);
         var target = AuditTarget.Spot(spot.Id);
-        audit.Record(actor, AuditActions.SpotCodeChanged, target, $"{oldCode} → {code}");
+        var details = AuditChanges.Change(oldCode, code);
+        audit.Record(actor, AuditActions.SpotCodeChanged, target, details);
         await db.SaveChangesAsync();
 
         events.Publish(new SpotCodeChanged(spot.Id));
@@ -191,7 +192,7 @@ public class SpotService(
     public async Task<Result<Spot>> SwitchAsync(int id, bool on)
     {
         var actor = currentActor.Get();
-        var spot = await visibleSpots.FindAsync(id, actor);
+        var spot = await reader.FindVisibleAsync(id, actor);
         if (spot is null)
         {
             return Fail(SpotError.NotFound);
@@ -229,7 +230,7 @@ public class SpotService(
     public async Task<Result<Spot>> ArchiveAsync(int id)
     {
         var actor = currentActor.Get();
-        var spot = await visibleSpots.FindAsync(id, actor);
+        var spot = await reader.FindVisibleAsync(id, actor);
         if (spot is null)
         {
             return Fail(SpotError.NotFound);
@@ -347,15 +348,6 @@ public class SpotService(
         }
 
         return None;
-    }
-
-    private static string Changes(params (string Field, string Old, string New)[] fields)
-    {
-        var changed = fields
-            .Where(f => f.Old != f.New)
-            .Select(f => $"{f.Field}: {f.Old} → {f.New}");
-
-        return string.Join("; ", changed);
     }
 
     private static Result<Spot> Fail(string error)

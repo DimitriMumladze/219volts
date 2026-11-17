@@ -1,12 +1,9 @@
-using Microsoft.EntityFrameworkCore;
 using TwoNineteenVolts.Venue.Application.Audit;
 using TwoNineteenVolts.Venue.Application.Data;
 using TwoNineteenVolts.Venue.Application.Devices;
-using TwoNineteenVolts.Venue.Application.Sessions;
 using TwoNineteenVolts.Venue.Application.Spots;
 using TwoNineteenVolts.Venue.Common;
 using TwoNineteenVolts.Venue.Domain.Spots;
-using TwoNineteenVolts.Venue.Domain.Users;
 using TwoNineteenVolts.Venue.Infrastructure.Auth;
 
 namespace TwoNineteenVolts.Venue.Endpoints.Spots;
@@ -26,49 +23,34 @@ public static class SpotEndpoints
         group.MapPut("/{id:int}/state", SwitchAsync);
     }
 
-
-    private static async Task<IResult> GetSpotsAsync(IVenueDbContext db, IDeviceGateway devices, SwitchOffWarnings warnings, ICurrentActor currentActor)
+    public static async Task<IResult> ViewResultAsync(int id, SpotReader reader, ICurrentActor currentActor)
     {
         var actor = currentActor.Get();
-        var spots = db.Spots.AsQueryable();
-        if (actor.Role != Role.Support)
-        {
-            spots = spots.Where(s => s.DeviceId != null && !s.IsArchived);
-        }
-
-        var visible = await spots
-            .OrderBy(s => s.Name)
-            .ToListAsync();
-
-        var responses = await SpotResponses.BuildAllAsync(visible, db, devices, warnings);
-        return TypedResults.Ok(responses);
-    }
-
-    private static async Task<IResult> GetSpotAsync(
-        int id,
-        VisibleSpots visibleSpots,
-        IVenueDbContext db,
-        IDeviceGateway devices,
-        SwitchOffWarnings warnings,
-        ICurrentActor currentActor)
-    {
-        var actor = currentActor.Get();
-        var spot = await visibleSpots.FindAsync(id, actor);
-        if (spot is null)
+        var view = await reader.ViewAsync(id, actor);
+        if (view is null)
         {
             return SpotProblems.ToProblem(SpotError.NotFound);
         }
 
-        var response = await SpotResponses.BuildAsync(spot, db, devices, warnings);
+        var response = SpotResponse.From(view);
         return TypedResults.Ok(response);
     }
 
-    private static async Task<IResult> CreateAsync(
-        CreateSpotRequest request,
-        SpotService spots,
-        IVenueDbContext db,
-        IDeviceGateway devices,
-        SwitchOffWarnings warnings)
+
+    private static async Task<IResult> GetSpotsAsync(SpotReader reader, ICurrentActor currentActor)
+    {
+        var actor = currentActor.Get();
+        var views = await reader.ViewAllAsync(actor);
+        var responses = views.Select(SpotResponse.From).ToList();
+        return TypedResults.Ok(responses);
+    }
+
+    private static Task<IResult> GetSpotAsync(int id, SpotReader reader, ICurrentActor currentActor)
+    {
+        return ViewResultAsync(id, reader, currentActor);
+    }
+
+    private static async Task<IResult> CreateAsync(CreateSpotRequest request, SpotService spots, SpotReader reader, ICurrentActor currentActor)
     {
         var result = await spots.CreateAsync(request.Name, request.GroupId, request.DeviceId, request.Channel);
         if (result.IsFailure)
@@ -76,42 +58,44 @@ public static class SpotEndpoints
             return SpotProblems.ToProblem(result.Error);
         }
 
+        var actor = currentActor.Get();
         var spot = result.Value;
-        var response = await SpotResponses.BuildAsync(spot, db, devices, warnings);
+        var view = await reader.ViewAsync(spot.Id, actor);
+        if (view is null)
+        {
+            return SpotProblems.ToProblem(SpotError.NotFound);
+        }
+
+        var response = SpotResponse.From(view);
         return TypedResults.Created($"/api/spots/{spot.Id}", response);
     }
 
-    private static async Task<IResult> UpdateAsync(
-        int id,
-        UpdateSpotRequest request,
-        SpotService spots,
-        IVenueDbContext db,
-        IDeviceGateway devices,
-        SwitchOffWarnings warnings)
+    private static async Task<IResult> UpdateAsync(int id, UpdateSpotRequest request, SpotService spots, SpotReader reader, ICurrentActor currentActor)
     {
         var result = await spots.UpdateAsync(id, request.Name, request.GroupId, request.DeviceId, request.Channel);
-        return await ToResultAsync(result, db, devices, warnings);
+        return await ToResultAsync(result, reader, currentActor);
     }
 
-    private static async Task<IResult> NewCodeAsync(int id, SpotService spots, IVenueDbContext db, IDeviceGateway devices, SwitchOffWarnings warnings)
+    private static async Task<IResult> NewCodeAsync(int id, SpotService spots, SpotReader reader, ICurrentActor currentActor)
     {
         var result = await spots.NewCodeAsync(id);
-        return await ToResultAsync(result, db, devices, warnings);
+        return await ToResultAsync(result, reader, currentActor);
     }
 
-    private static async Task<IResult> ArchiveAsync(int id, SpotService spots, IVenueDbContext db, IDeviceGateway devices, SwitchOffWarnings warnings)
+    private static async Task<IResult> ArchiveAsync(int id, SpotService spots, SpotReader reader, ICurrentActor currentActor)
     {
         var result = await spots.ArchiveAsync(id);
-        return await ToResultAsync(result, db, devices, warnings);
+        return await ToResultAsync(result, reader, currentActor);
     }
 
     private static async Task<IResult> SwitchAsync(
         int id,
         SwitchSpotRequest request,
         SpotService spots,
+        SpotReader reader,
+        ICurrentActor currentActor,
         IVenueDbContext db,
-        IDeviceGateway devices,
-        SwitchOffWarnings warnings)
+        IDeviceGateway devices)
     {
         var result = await spots.SwitchAsync(id, request.On);
         if (result.IsFailure)
@@ -119,17 +103,17 @@ public static class SpotEndpoints
             return await SpotProblems.ForSpotAsync(result.Error, id, db, devices);
         }
 
-        return await ToResultAsync(result, db, devices, warnings);
+        return await ToResultAsync(result, reader, currentActor);
     }
 
-    private static async Task<IResult> ToResultAsync(Result<Spot> result, IVenueDbContext db, IDeviceGateway devices, SwitchOffWarnings warnings)
+    private static async Task<IResult> ToResultAsync(Result<Spot> result, SpotReader reader, ICurrentActor currentActor)
     {
         if (result.IsFailure)
         {
             return SpotProblems.ToProblem(result.Error);
         }
 
-        var response = await SpotResponses.BuildAsync(result.Value, db, devices, warnings);
-        return TypedResults.Ok(response);
+        var spot = result.Value;
+        return await ViewResultAsync(spot.Id, reader, currentActor);
     }
 }

@@ -14,7 +14,7 @@ namespace TwoNineteenVolts.Venue.Application.Sessions;
 
 public class SessionService(
     IVenueDbContext db,
-    VisibleSpots visibleSpots,
+    SpotReader reader,
     IDeviceGateway devices,
     SwitchFailures failures,
     SwitchOffWarnings warnings,
@@ -44,7 +44,7 @@ public class SessionService(
             return Result<long>.Fail(found.Error);
         }
 
-        var price = Money.PriceTetri(minutes, found.Value.HourlyRateTetri);
+        var price = SessionPricing.PriceTetri(minutes, found.Value.HourlyRateTetri);
         return Result<long>.Ok(price);
     }
 
@@ -402,7 +402,7 @@ public class SessionService(
         db.SessionCharges.Add(sessionCharge);
 
         var target = AuditTarget.Spot(session.SpotId);
-        var details = ChargeDetails(charge);
+        var details = SessionPricing.Details(charge.Minutes, charge.ComputedTetri, charge.ChargedTetri);
         audit.Record(actor, action, target, details);
     }
 
@@ -420,8 +420,8 @@ public class SessionService(
         }
 
         var target = found.Value;
-        var computed = Money.PriceTetri(minutes, target.HourlyRateTetri);
-        var charged = ChargedTetri(amount, computed);
+        var computed = SessionPricing.PriceTetri(minutes, target.HourlyRateTetri);
+        var charged = SessionPricing.ChargedTetri(amount, computed);
         if (charged is not long chargedTetri)
         {
             return Result<PreparedCharge>.Fail(SessionError.InvalidAmount);
@@ -433,7 +433,7 @@ public class SessionService(
 
     private async Task<Result<SpotTarget>> FindTargetAsync(int spotId, AuditActor actor)
     {
-        var spot = await visibleSpots.FindAsync(spotId, actor);
+        var spot = await reader.FindVisibleAsync(spotId, actor);
         if (spot is null)
         {
             return Result<SpotTarget>.Fail(SpotError.NotFound);
@@ -463,39 +463,6 @@ public class SessionService(
     private static bool AreValid(int minutes)
     {
         return minutes >= MinMinutes && minutes <= MaxMinutes;
-    }
-
-    private static long? ChargedTetri(decimal? amount, long computedTetri)
-    {
-        if (amount is not decimal typed)
-        {
-            return computedTetri;
-        }
-
-        var computedGel = Money.ToGel(computedTetri);
-        if (typed < 0 || typed > computedGel)
-        {
-            return null;
-        }
-
-        if (!Money.HasAtMostTwoDecimals(typed))
-        {
-            return null;
-        }
-
-        return Money.ToTetri(typed);
-    }
-
-    private static string ChargeDetails(PreparedCharge charge)
-    {
-        var computed = Money.Show(charge.ComputedTetri);
-        if (charge.ChargedTetri == charge.ComputedTetri)
-        {
-            return $"{charge.Minutes} min, {computed}";
-        }
-
-        var charged = Money.Show(charge.ChargedTetri);
-        return $"{charge.Minutes} min, {computed} → {charged}";
     }
 
     private static Result<Session> Fail(string error)

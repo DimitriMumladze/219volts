@@ -8,7 +8,7 @@ public static class SpotsModule
     {
         services.AddSingleton<ISpotCodeGenerator, SpotCodeGenerator>();
         services.AddScoped<SpotService>();
-        services.AddScoped<VisibleSpots>();
+        services.AddScoped<SpotReader>();
         services.AddScoped<SwitchFailures>();
 
         return services;
