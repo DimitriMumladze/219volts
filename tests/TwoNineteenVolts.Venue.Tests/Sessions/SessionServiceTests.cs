@@ -114,7 +114,7 @@ public class SessionServiceTests
 
         var count = await CountAsync(factory);
         var entry = await SingleAuditAsync(factory, AuditActions.SpotSwitchFailed);
-        Assert.Equal(SpotError.StateMismatch, result.Error);
+        Assert.Equal(DeviceError.DidNotObey, result.Error);
         Assert.Equal((0, 0), count);
         Assert.Equal("mismatch", entry.Details);
     }

@@ -8,9 +8,9 @@ namespace TwoNineteenVolts.Venue.Endpoints.Spots;
 
 public static class SpotProblems
 {
-    public static async Task<IResult> ForSpotAsync(string error, int spotId, IVenueDbContext db, DeviceStatuses statuses)
+    public static async Task<IResult> ForSpotAsync(string error, int spotId, IVenueDbContext db, IDeviceGateway devices)
     {
-        if (error != SpotError.StateMismatch)
+        if (error != DeviceError.DidNotObey)
         {
             return ToProblem(error);
         }
@@ -21,9 +21,9 @@ public static class SpotProblems
             return ToProblem(error);
         }
 
-        var status = statuses.Get(deviceId);
-        var realState = status.IsOn(channel);
-        var extra = new Dictionary<string, object?> { ["isOn"] = realState };
+        var outlet = new Outlet(deviceId, channel);
+        var state = await devices.StateOfAsync(outlet);
+        var extra = new Dictionary<string, object?> { ["isOn"] = state.IsOn };
         return Problems.Create(error, StatusCodes.Status502BadGateway, extra);
     }
 
@@ -44,7 +44,7 @@ public static class SpotProblems
             SpotError.DuplicateName or SpotError.ChannelInUse or SpotError.Unmapped
                 or SpotError.Archived or SpotError.CodeTaken or SpotError.GroupArchived or SpotError.SessionRunning
                 or SessionError.AlreadyRunning or SessionError.NotRunning => StatusCodes.Status409Conflict,
-            DeviceError.ErrorAnswer or SpotError.StateMismatch => StatusCodes.Status502BadGateway,
+            DeviceError.ErrorAnswer or DeviceError.DidNotObey => StatusCodes.Status502BadGateway,
             DeviceError.NoAnswer => StatusCodes.Status504GatewayTimeout,
             _ => StatusCodes.Status500InternalServerError
         };

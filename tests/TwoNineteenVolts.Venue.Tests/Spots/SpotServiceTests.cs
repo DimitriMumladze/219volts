@@ -564,7 +564,7 @@ public class SpotServiceTests
         var status = Statuses(factory).Get(panel);
         var failure = await SingleAuditAsync(factory, AuditActions.SpotSwitchFailed);
         var state = status.IsOn(3);
-        Assert.Equal(SpotError.StateMismatch, result.Error);
+        Assert.Equal(DeviceError.DidNotObey, result.Error);
         Assert.True(status.IsOnline);
         Assert.False(state);
         Assert.Equal("mismatch", failure.Details);

@@ -26,9 +26,9 @@ public class SpotChangedPusher(IHubContext<VenueHub> hub, IVenueDbContext db) : 
                 return [spotEvent.SpotId];
             case DeviceDeleted deleted:
                 return deleted.UnmappedSpotIds;
-            case ChannelStateChanged changed:
+            case OutletChanged changed:
                 return await db.Spots
-                    .Where(s => s.DeviceId == changed.DeviceId && s.Channel == changed.Channel)
+                    .Where(s => s.DeviceId == changed.Outlet.DeviceId && s.Channel == changed.Outlet.Channel)
                     .Select(s => s.Id)
                     .ToListAsync();
             case IGroupEvent groupEvent:

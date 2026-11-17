@@ -16,7 +16,7 @@ public class DeviceService(
     IVenueDbContext db,
     RelayDrivers drivers,
     DeviceStatuses statuses,
-    BoardGates gates,
+    DeviceLocks locks,
     IAuditLog audit,
     ICurrentActor currentActor,
     IEventQueue events,
@@ -135,7 +135,7 @@ public class DeviceService(
         await transaction.CommitAsync();
 
         statuses.Remove(id);
-        gates.Remove(id);
+        locks.Remove(id);
         var unmappedSpotIds = spots.Select(s => s.Id).ToList();
         events.Publish(new DeviceDeleted(id, unmappedSpotIds));
         return Result<Device>.Ok(device);

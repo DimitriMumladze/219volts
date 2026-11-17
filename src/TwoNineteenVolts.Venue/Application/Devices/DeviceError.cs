@@ -14,5 +14,7 @@ public static class DeviceError
 
     public const string ErrorAnswer = "DeviceErrorAnswer";
 
+    public const string DidNotObey = "DeviceDidNotObey";
+
     public const string SessionRunning = "DeviceSessionRunning";
 }

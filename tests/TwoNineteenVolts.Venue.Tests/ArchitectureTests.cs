@@ -13,6 +13,18 @@ public class ArchitectureTests
     private const string Common = Root + ".Common";
     private const string Resources = Root + ".Resources";
 
+    private static readonly string[] DeviceInternals =
+    [
+        Application + ".Devices.DeviceGateway",
+        Application + ".Devices.DeviceLocks",
+        Application + ".Devices.OutletControl",
+        Application + ".Devices.DeviceStatus",
+        Application + ".Devices.DeviceStatuses",
+        Application + ".Devices.RelayDrivers",
+        Application + ".Devices.IRelayDriver",
+        Application + ".Devices.RelayCall"
+    ];
+
     [Fact]
     public void Domain_uses_nothing_else_in_the_project()
     {
@@ -43,6 +55,18 @@ public class ArchitectureTests
         AssertNoDependency(Domain, Resources);
         AssertNoDependency(Application, Resources);
         AssertNoDependency(Infrastructure, Resources);
+    }
+
+    [Fact]
+    public void Only_devices_use_device_internals()
+    {
+        var result = Types.InAssembly(typeof(Program).Assembly)
+            .That().DoNotResideInNamespaceMatching(@"\.Devices(\.|$)")
+            .ShouldNot().HaveDependencyOnAny(DeviceInternals)
+            .GetResult();
+
+        var offenders = string.Join(", ", result.FailingTypeNames ?? []);
+        Assert.True(result.IsSuccessful, $"Only the Devices feature may use device internals. Offending types: {offenders}");
     }
 
 

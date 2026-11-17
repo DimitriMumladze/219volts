@@ -96,9 +96,6 @@
   <data name="SpotOnlyNameChangeAllowed" xml:space="preserve">
     <value>Only Support can change a spot's device or channel</value>
   </data>
-  <data name="SpotStateMismatch" xml:space="preserve">
-    <value>The relay did not switch</value>
-  </data>
 
   <!-- Auth -->
   <data name="AuthWrongPin" xml:space="preserve">
@@ -203,5 +200,8 @@
   </data>
   <data name="DeviceSessionRunning" xml:space="preserve">
     <value>A spot on this device has a running session; stop it first</value>
+  </data>
+  <data name="DeviceDidNotObey" xml:space="preserve">
+    <value>The relay did not switch</value>
   </data>
 </root>

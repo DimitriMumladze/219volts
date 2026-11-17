@@ -7,8 +7,6 @@ using TwoNineteenVolts.Venue.Application.Events;
 using TwoNineteenVolts.Venue.Application.Sessions;
 using TwoNineteenVolts.Venue.Common;
 using TwoNineteenVolts.Venue.Domain.Audit;
-using TwoNineteenVolts.Venue.Domain.Devices;
-using TwoNineteenVolts.Venue.Domain.Sessions;
 using TwoNineteenVolts.Venue.Domain.Spots;
 using TwoNineteenVolts.Venue.Domain.Users;
 
@@ -16,7 +14,7 @@ namespace TwoNineteenVolts.Venue.Application.Spots;
 
 public class SpotService(
     IVenueDbContext db,
-    BoardGate gate,
+    IDeviceGateway devices,
     ISpotCodeGenerator codes,
     VisibleSpots visibleSpots,
     SwitchFailures failures,
@@ -209,13 +207,12 @@ public class SpotService(
             return Fail(SpotError.Unmapped);
         }
 
-        var device = await db.Devices.SingleAsync(d => d.Id == deviceId);
-        var switched = await gate.RunAsync(device, board => SwitchInsideGateAsync(board, spot.Id, channel, on, actor));
-        var error = SwitchFailures.ErrorOf(switched, on);
-        if (error is not null)
+        var outlet = new Outlet(deviceId, channel);
+        var switched = await SwitchOutletAsync(outlet, spot.Id, on, actor);
+        if (switched.IsFailure)
         {
-            await failures.RecordAsync(spot.Id, actor, error);
-            return Fail(error);
+            var reported = await failures.RecordAsync(spot.Id, actor, switched.Error);
+            return Fail(reported);
         }
 
         var target = AuditTarget.Spot(spot.Id);
@@ -258,17 +255,14 @@ public class SpotService(
     }
 
 
-    private async Task<Result<bool>> SwitchInsideGateAsync(Board board, int spotId, int channel, bool on, AuditActor actor)
+    private Task<Result<bool>> SwitchOutletAsync(Outlet outlet, int spotId, bool on, AuditActor actor)
     {
-        var switched = await board.SwitchAsync(channel, on);
-        var error = SwitchFailures.ErrorOf(switched, on);
-        if (error is not null || on)
+        if (on)
         {
-            return switched;
+            return devices.SwitchAsync(outlet, true);
         }
 
-        await sessions.EndRunningInsideGateAsync(spotId, SessionEndReason.ManualOff, actor);
-        return switched;
+        return sessions.SwitchOffAndEndAsync(outlet, spotId, actor);
     }
 
     private static string? ValidateInput(string name, int? deviceId, int? channel)
@@ -313,13 +307,14 @@ public class SpotService(
     {
         if (deviceId is int mappedDeviceId && channel is int mappedChannel)
         {
-            var device = await db.Devices.SingleOrDefaultAsync(d => d.Id == mappedDeviceId);
-            if (device is null)
+            var outlet = new Outlet(mappedDeviceId, mappedChannel);
+            var check = await devices.CheckOutletAsync(outlet);
+            if (check == OutletCheck.UnknownDevice)
             {
                 return SpotError.UnknownDevice;
             }
 
-            if (mappedChannel < 1 || mappedChannel > device.ChannelCount)
+            if (check == OutletCheck.ChannelOutOfRange)
             {
                 return SpotError.ChannelOutOfRange;
             }

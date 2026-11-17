@@ -15,11 +15,11 @@ public class DeviceCheckService(
     {
         using var scope = scopes.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<VenueDbContext>();
-        var gate = scope.ServiceProvider.GetRequiredService<BoardGate>();
+        var gateway = scope.ServiceProvider.GetRequiredService<DeviceGateway>();
 
         var devices = await db.Devices.AsNoTracking().ToListAsync();
 
-        var checks = devices.Select(device => gate.RunAsync(device, board => board.ReadAllAsync())).ToList();
+        var checks = devices.Select(gateway.CheckDeviceAsync).ToList();
         await Task.WhenAll(checks);
     }
 

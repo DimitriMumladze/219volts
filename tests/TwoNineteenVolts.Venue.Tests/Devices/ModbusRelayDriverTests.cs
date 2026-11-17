@@ -140,46 +140,6 @@ public class ModbusRelayDriverTests
     }
 
     [Fact]
-    public async Task Calls_to_one_board_never_overlap()
-    {
-        var silentBoard = new TcpListener(IPAddress.Loopback, 0);
-        silentBoard.Start();
-        var endpoint = (IPEndPoint)silentBoard.LocalEndpoint;
-        var connections = new List<TcpClient>();
-        var accepting = AcceptAllAsync(silentBoard, connections);
-        var driver = new ModbusRelayDriver();
-        var device = BoardOn(endpoint.Port, channelCount: 16);
-        var fiveSeconds = TimeSpan.FromSeconds(5);
-        var halfSecond = TimeSpan.FromMilliseconds(500);
-
-        try
-        {
-            var first = driver.ReadAllAsync(device, CancellationToken.None);
-            var firstConnected = SpinWait.SpinUntil(() => CountOf(connections) == 1, fiveSeconds);
-            var second = driver.ReadAllAsync(device, CancellationToken.None);
-            await Task.Delay(halfSecond);
-            var connectionsWhileFirstWaits = CountOf(connections);
-            var firstStillWaiting = !first.IsCompleted;
-            await Task.WhenAll(first, second);
-            var connectionsAtTheEnd = CountOf(connections);
-
-            Assert.True(firstConnected);
-            Assert.True(firstStillWaiting);
-            Assert.Equal(1, connectionsWhileFirstWaits);
-            Assert.Equal(2, connectionsAtTheEnd);
-        }
-        finally
-        {
-            silentBoard.Stop();
-            await accepting;
-            lock (connections)
-            {
-                connections.ForEach(c => c.Dispose());
-            }
-        }
-    }
-
-    [Fact]
     public async Task Unreachable_boards_do_not_wait_for_each_other()
     {
         var firstPort = FreePort();
@@ -254,38 +214,6 @@ public class ModbusRelayDriverTests
         var endpoint = new IPEndPoint(IPAddress.Loopback, port);
         server.Start(endpoint);
         return server;
-    }
-
-    private static async Task AcceptAllAsync(TcpListener listener, List<TcpClient> connections)
-    {
-        try
-        {
-            while (true)
-            {
-                var connection = await listener.AcceptTcpClientAsync();
-                lock (connections)
-                {
-                    connections.Add(connection);
-                }
-            }
-        }
-        catch (SocketException)
-        {
-        }
-        catch (ObjectDisposedException)
-        {
-        }
-        catch (InvalidOperationException)
-        {
-        }
-    }
-
-    private static int CountOf(List<TcpClient> connections)
-    {
-        lock (connections)
-        {
-            return connections.Count;
-        }
     }
 
     private static int FreePort()

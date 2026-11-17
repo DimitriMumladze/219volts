@@ -300,7 +300,7 @@ public class SpotEndpointTests
         var isOn = (JsonElement)problem.Extensions["isOn"]!;
         var code = problem.Extensions["code"]!.ToString();
         Assert.Equal(HttpStatusCode.BadGateway, response.StatusCode);
-        Assert.Equal(SpotError.StateMismatch, code);
+        Assert.Equal(DeviceError.DidNotObey, code);
         Assert.Equal(JsonValueKind.False, isOn.ValueKind);
     }
 

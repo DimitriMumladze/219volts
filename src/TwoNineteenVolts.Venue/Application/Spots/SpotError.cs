@@ -14,7 +14,6 @@ public static class SpotError
     public const string Archived = "SpotArchived";
     public const string CodeTaken = "SpotCodeTaken";
     public const string OnlyNameChangeAllowed = "SpotOnlyNameChangeAllowed";
-    public const string StateMismatch = "SpotStateMismatch";
     public const string UnknownGroup = "SpotUnknownGroup";
     public const string GroupArchived = "SpotGroupArchived";
     public const string SessionRunning = "SpotSessionRunning";

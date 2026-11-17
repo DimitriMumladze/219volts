@@ -3,7 +3,6 @@ using TwoNineteenVolts.Venue.Application.Data;
 using TwoNineteenVolts.Venue.Application.Devices;
 using TwoNineteenVolts.Venue.Application.Sessions;
 using TwoNineteenVolts.Venue.Common;
-using TwoNineteenVolts.Venue.Domain.Devices;
 using TwoNineteenVolts.Venue.Domain.Groups;
 using TwoNineteenVolts.Venue.Domain.Sessions;
 using TwoNineteenVolts.Venue.Domain.Spots;
@@ -12,22 +11,23 @@ namespace TwoNineteenVolts.Venue.Endpoints.Spots;
 
 public static class SpotResponses
 {
-    public static async Task<SpotResponse> BuildAsync(Spot spot, IVenueDbContext db, DeviceStatuses statuses, SwitchOffWarnings warnings)
+    public static async Task<SpotResponse> BuildAsync(Spot spot, IVenueDbContext db, IDeviceGateway devices, SwitchOffWarnings warnings)
     {
         List<Spot> spots = [spot];
-        var responses = await BuildAllAsync(spots, db, statuses, warnings);
+        var responses = await BuildAllAsync(spots, db, devices, warnings);
         return responses[0];
     }
 
-    public static async Task<List<SpotResponse>> BuildAllAsync(List<Spot> spots, IVenueDbContext db, DeviceStatuses statuses, SwitchOffWarnings warnings)
+    public static async Task<List<SpotResponse>> BuildAllAsync(List<Spot> spots, IVenueDbContext db, IDeviceGateway devices, SwitchOffWarnings warnings)
     {
         var spotIds = spots.Select(s => s.Id).ToList();
-        var deviceIds = spots.Select(s => s.DeviceId).ToList();
         var groupIds = spots.Select(s => s.GroupId).ToList();
+        var outlets = spots
+            .Where(s => s.DeviceId != null && s.Channel != null)
+            .Select(s => new Outlet(s.DeviceId!.Value, s.Channel!.Value))
+            .ToList();
 
-        var devices = await db.Devices
-            .Where(d => deviceIds.Contains(d.Id))
-            .ToDictionaryAsync(d => d.Id);
+        var states = await devices.StatesOfAsync(outlets);
         var groups = await db.Groups
             .Where(g => groupIds.Contains(g.Id))
             .ToDictionaryAsync(g => g.Id);
@@ -41,7 +41,7 @@ public static class SpotResponses
             .Select(g => new { SessionId = g.Key, Total = g.Sum(c => c.ChargedTetri) })
             .ToDictionaryAsync(t => t.SessionId, t => t.Total);
 
-        var context = new Lookups(devices, groups, running, totals, statuses, warnings);
+        var context = new Lookups(states, groups, running, totals, warnings);
         return spots.Select(s => Build(s, context)).ToList();
     }
 
@@ -55,10 +55,13 @@ public static class SpotResponses
             return new SpotResponse(spot.Id, spot.Code, spot.Name, group.Id, group.Name, null, null, null, null, null, null, spot.IsArchived, spot.CreatedAt, session, false);
         }
 
-        var device = context.Devices[deviceId];
-        var status = context.Statuses.Get(deviceId);
-        var isOn = status.IsOn(channel);
-        var switchOffFailed = context.Warnings.Has(spot.Id) && isOn != false;
+        var outlet = new Outlet(deviceId, channel);
+        if (!context.States.TryGetValue(outlet, out var state))
+        {
+            return new SpotResponse(spot.Id, spot.Code, spot.Name, group.Id, group.Name, null, null, null, null, null, null, spot.IsArchived, spot.CreatedAt, session, false);
+        }
+
+        var switchOffFailed = context.Warnings.Has(spot.Id) && state.IsOn != false;
 
         return new SpotResponse(
             spot.Id,
@@ -67,11 +70,11 @@ public static class SpotResponses
             group.Id,
             group.Name,
             deviceId,
-            device.Name,
+            state.DeviceName,
             channel,
-            isOn,
-            status.IsOnline,
-            status.LastSeen,
+            state.IsOn,
+            state.DeviceOnline,
+            state.LastSeen,
             spot.IsArchived,
             spot.CreatedAt,
             session,
@@ -91,10 +94,9 @@ public static class SpotResponses
     }
 
     private record Lookups(
-        Dictionary<int, Device> Devices,
+        IReadOnlyDictionary<Outlet, OutletState> States,
         Dictionary<int, Group> Groups,
         Dictionary<int, Session> Running,
         Dictionary<int, long> Totals,
-        DeviceStatuses Statuses,
         SwitchOffWarnings Warnings);
 }

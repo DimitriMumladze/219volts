@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
 using FluentModbus;
@@ -11,9 +10,7 @@ namespace TwoNineteenVolts.Venue.Infrastructure.Devices;
 public class ModbusRelayDriver : IRelayDriver
 {
     private const byte UnitId = 1;
-    private const int TimeoutMilliseconds = 2000;
-
-    private readonly ConcurrentDictionary<string, SemaphoreSlim> _boards = new();
+    private static readonly int TimeoutMilliseconds = (int)RelayCall.Timeout.TotalMilliseconds;
 
     public DeviceKind Kind => DeviceKind.WaveshareModbusTcp;
 
@@ -51,16 +48,6 @@ public class ModbusRelayDriver : IRelayDriver
         Func<ModbusTcpClient, Task<Result<T>>> call,
         CancellationToken cancellationToken)
     {
-        var board = _boards.GetOrAdd($"{device.IpAddress}:{device.Port}", _ => new SemaphoreSlim(1, 1));
-        try
-        {
-            await board.WaitAsync(cancellationToken);
-        }
-        catch (OperationCanceledException)
-        {
-            return Result<T>.Fail(DeviceError.NoAnswer);
-        }
-
         try
         {
             using var client = new ModbusTcpClient
@@ -84,10 +71,6 @@ public class ModbusRelayDriver : IRelayDriver
         catch (Exception)
         {
             return Result<T>.Fail(DeviceError.NoAnswer);
-        }
-        finally
-        {
-            board.Release();
         }
     }
 

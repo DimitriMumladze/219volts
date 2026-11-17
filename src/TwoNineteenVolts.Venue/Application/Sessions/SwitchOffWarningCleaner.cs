@@ -9,13 +9,13 @@ public class SwitchOffWarningCleaner(IVenueDbContext db, SwitchOffWarnings warni
 {
     public async Task HandleAsync(IVenueEvent venueEvent, CancellationToken cancellationToken)
     {
-        if (venueEvent is not ChannelStateChanged changed || changed.IsOn != false)
+        if (venueEvent is not OutletChanged changed || changed.IsOn != false)
         {
             return;
         }
 
         var spotIds = await db.Spots
-            .Where(s => s.DeviceId == changed.DeviceId && s.Channel == changed.Channel)
+            .Where(s => s.DeviceId == changed.Outlet.DeviceId && s.Channel == changed.Outlet.Channel)
             .Select(s => s.Id)
             .ToListAsync(cancellationToken);
         foreach (var spotId in spotIds)

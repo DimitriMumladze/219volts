@@ -11,6 +11,7 @@ using TwoNineteenVolts.Venue.Domain.Sessions;
 using TwoNineteenVolts.Venue.Domain.Spots;
 using TwoNineteenVolts.Venue.Domain.Users;
 using TwoNineteenVolts.Venue.Infrastructure.Data;
+using TwoNineteenVolts.Venue.Infrastructure.Sessions;
 using TwoNineteenVolts.Venue.Tests.Devices;
 using TwoNineteenVolts.Venue.Tests.Groups;
 using TwoNineteenVolts.Venue.Tests.Spots;
@@ -54,6 +55,40 @@ public class SessionRulesTests
 
         var session = await SingleSessionAsync(factory);
         Assert.Equal(DeviceError.NoAnswer, result.Error);
+        Assert.True(session.IsRunning);
+    }
+
+    [Fact]
+    public async Task Manual_off_right_after_the_timer_ended_the_session_just_switches_off()
+    {
+        using var factory = new VenueAppFactory();
+        var (panel, spot) = await AddSpotAsync(factory);
+        await StartAsync(factory, spot);
+        factory.Time.Advance(TimeSpan.FromMinutes(60));
+        await ActivatorUtilities.CreateInstance<SessionTickService>(factory.Services).RunOnceAsync();
+        await UseSpotsAsync(factory, Staff, spots => spots.SwitchAsync(spot, true));
+
+        var result = await UseSpotsAsync(factory, Staff, spots => spots.SwitchAsync(spot, false));
+
+        var ended = await CountAuditAsync(factory, AuditActions.SessionEnded);
+        var offCalls = factory.Waveshare.Calls.Count(c => c == $"set {panel}/{Channel} off");
+        Assert.False(result.IsFailure);
+        Assert.Equal(2, offCalls);
+        Assert.Equal(1, ended);
+    }
+
+    [Fact]
+    public async Task Disobeying_manual_off_keeps_the_session_running()
+    {
+        using var factory = new VenueAppFactory();
+        var (_, spot) = await AddSpotAsync(factory);
+        await StartAsync(factory, spot);
+        factory.Waveshare.IgnoreSet = true;
+
+        var result = await UseSpotsAsync(factory, Staff, spots => spots.SwitchAsync(spot, false));
+
+        var session = await SingleSessionAsync(factory);
+        Assert.Equal(DeviceError.DidNotObey, result.Error);
         Assert.True(session.IsRunning);
     }
 
@@ -159,6 +194,13 @@ public class SessionRulesTests
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<VenueDbContext>();
         return await db.Sessions.SingleAsync();
+    }
+
+    private static async Task<int> CountAuditAsync(VenueAppFactory factory, string action)
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<VenueDbContext>();
+        return await db.AuditEntries.CountAsync(e => e.Action == action);
     }
 
     private static async Task<AuditEntry> SingleAuditAsync(VenueAppFactory factory, string action)

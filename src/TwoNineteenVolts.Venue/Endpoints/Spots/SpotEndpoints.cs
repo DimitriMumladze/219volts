@@ -27,7 +27,7 @@ public static class SpotEndpoints
     }
 
 
-    private static async Task<IResult> GetSpotsAsync(IVenueDbContext db, DeviceStatuses statuses, SwitchOffWarnings warnings, ICurrentActor currentActor)
+    private static async Task<IResult> GetSpotsAsync(IVenueDbContext db, IDeviceGateway devices, SwitchOffWarnings warnings, ICurrentActor currentActor)
     {
         var actor = currentActor.Get();
         var spots = db.Spots.AsQueryable();
@@ -40,7 +40,7 @@ public static class SpotEndpoints
             .OrderBy(s => s.Name)
             .ToListAsync();
 
-        var responses = await SpotResponses.BuildAllAsync(visible, db, statuses, warnings);
+        var responses = await SpotResponses.BuildAllAsync(visible, db, devices, warnings);
         return TypedResults.Ok(responses);
     }
 
@@ -48,7 +48,7 @@ public static class SpotEndpoints
         int id,
         VisibleSpots visibleSpots,
         IVenueDbContext db,
-        DeviceStatuses statuses,
+        IDeviceGateway devices,
         SwitchOffWarnings warnings,
         ICurrentActor currentActor)
     {
@@ -59,7 +59,7 @@ public static class SpotEndpoints
             return SpotProblems.ToProblem(SpotError.NotFound);
         }
 
-        var response = await SpotResponses.BuildAsync(spot, db, statuses, warnings);
+        var response = await SpotResponses.BuildAsync(spot, db, devices, warnings);
         return TypedResults.Ok(response);
     }
 
@@ -67,7 +67,7 @@ public static class SpotEndpoints
         CreateSpotRequest request,
         SpotService spots,
         IVenueDbContext db,
-        DeviceStatuses statuses,
+        IDeviceGateway devices,
         SwitchOffWarnings warnings)
     {
         var result = await spots.CreateAsync(request.Name, request.GroupId, request.DeviceId, request.Channel);
@@ -77,7 +77,7 @@ public static class SpotEndpoints
         }
 
         var spot = result.Value;
-        var response = await SpotResponses.BuildAsync(spot, db, statuses, warnings);
+        var response = await SpotResponses.BuildAsync(spot, db, devices, warnings);
         return TypedResults.Created($"/api/spots/{spot.Id}", response);
     }
 
@@ -86,23 +86,23 @@ public static class SpotEndpoints
         UpdateSpotRequest request,
         SpotService spots,
         IVenueDbContext db,
-        DeviceStatuses statuses,
+        IDeviceGateway devices,
         SwitchOffWarnings warnings)
     {
         var result = await spots.UpdateAsync(id, request.Name, request.GroupId, request.DeviceId, request.Channel);
-        return await ToResultAsync(result, db, statuses, warnings);
+        return await ToResultAsync(result, db, devices, warnings);
     }
 
-    private static async Task<IResult> NewCodeAsync(int id, SpotService spots, IVenueDbContext db, DeviceStatuses statuses, SwitchOffWarnings warnings)
+    private static async Task<IResult> NewCodeAsync(int id, SpotService spots, IVenueDbContext db, IDeviceGateway devices, SwitchOffWarnings warnings)
     {
         var result = await spots.NewCodeAsync(id);
-        return await ToResultAsync(result, db, statuses, warnings);
+        return await ToResultAsync(result, db, devices, warnings);
     }
 
-    private static async Task<IResult> ArchiveAsync(int id, SpotService spots, IVenueDbContext db, DeviceStatuses statuses, SwitchOffWarnings warnings)
+    private static async Task<IResult> ArchiveAsync(int id, SpotService spots, IVenueDbContext db, IDeviceGateway devices, SwitchOffWarnings warnings)
     {
         var result = await spots.ArchiveAsync(id);
-        return await ToResultAsync(result, db, statuses, warnings);
+        return await ToResultAsync(result, db, devices, warnings);
     }
 
     private static async Task<IResult> SwitchAsync(
@@ -110,26 +110,26 @@ public static class SpotEndpoints
         SwitchSpotRequest request,
         SpotService spots,
         IVenueDbContext db,
-        DeviceStatuses statuses,
+        IDeviceGateway devices,
         SwitchOffWarnings warnings)
     {
         var result = await spots.SwitchAsync(id, request.On);
         if (result.IsFailure)
         {
-            return await SpotProblems.ForSpotAsync(result.Error, id, db, statuses);
+            return await SpotProblems.ForSpotAsync(result.Error, id, db, devices);
         }
 
-        return await ToResultAsync(result, db, statuses, warnings);
+        return await ToResultAsync(result, db, devices, warnings);
     }
 
-    private static async Task<IResult> ToResultAsync(Result<Spot> result, IVenueDbContext db, DeviceStatuses statuses, SwitchOffWarnings warnings)
+    private static async Task<IResult> ToResultAsync(Result<Spot> result, IVenueDbContext db, IDeviceGateway devices, SwitchOffWarnings warnings)
     {
         if (result.IsFailure)
         {
             return SpotProblems.ToProblem(result.Error);
         }
 
-        var response = await SpotResponses.BuildAsync(result.Value, db, statuses, warnings);
+        var response = await SpotResponses.BuildAsync(result.Value, db, devices, warnings);
         return TypedResults.Ok(response);
     }
 }

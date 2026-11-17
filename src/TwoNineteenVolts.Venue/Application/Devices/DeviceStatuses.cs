@@ -25,6 +25,13 @@ public class DeviceStatuses(TimeProvider time, IEventQueue events, ILogger<Devic
         }
     }
 
+    public OutletState StateOf(Outlet outlet, string deviceName)
+    {
+        var status = Get(outlet.DeviceId);
+        var isOn = status.IsOn(outlet.Channel);
+        return new OutletState(isOn, status.IsOnline, status.LastSeen, deviceName);
+    }
+
     public void RecordOutcome(int deviceId, string? error)
     {
         lock (_lock)
@@ -138,7 +145,8 @@ public class DeviceStatuses(TimeProvider time, IEventQueue events, ILogger<Devic
     {
         if (old != current)
         {
-            events.Publish(new ChannelStateChanged(deviceId, channel, current));
+            var outlet = new Outlet(deviceId, channel);
+            events.Publish(new OutletChanged(outlet, current));
         }
     }
 

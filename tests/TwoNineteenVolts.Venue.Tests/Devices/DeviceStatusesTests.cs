@@ -67,11 +67,11 @@ public class DeviceStatusesTests
 
         List<IVenueEvent> expected =
         [
-            new ChannelStateChanged(DeviceId, 1, true),
-            new ChannelStateChanged(DeviceId, 2, false),
-            new ChannelStateChanged(DeviceId, 2, true),
-            new ChannelStateChanged(DeviceId, 1, false),
-            new ChannelStateChanged(DeviceId, 2, null)
+            new OutletChanged(new Outlet(DeviceId, 1), true),
+            new OutletChanged(new Outlet(DeviceId, 2), false),
+            new OutletChanged(new Outlet(DeviceId, 2), true),
+            new OutletChanged(new Outlet(DeviceId, 1), false),
+            new OutletChanged(new Outlet(DeviceId, 2), null)
         ];
         Assert.Equal(expected, _events.Events);
     }

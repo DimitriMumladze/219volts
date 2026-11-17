@@ -27,11 +27,11 @@ public static class SessionEndpoints
         SessionTimeRequest request,
         SessionService sessions,
         IVenueDbContext db,
-        DeviceStatuses statuses,
+        IDeviceGateway devices,
         SwitchOffWarnings warnings)
     {
         var result = await sessions.StartAsync(id, request.Minutes, request.Amount);
-        return await ToResultAsync(id, result, db, statuses, warnings);
+        return await ToResultAsync(id, result, db, devices, warnings);
     }
 
     private static async Task<IResult> ExtendAsync(
@@ -39,17 +39,17 @@ public static class SessionEndpoints
         SessionTimeRequest request,
         SessionService sessions,
         IVenueDbContext db,
-        DeviceStatuses statuses,
+        IDeviceGateway devices,
         SwitchOffWarnings warnings)
     {
         var result = await sessions.ExtendAsync(id, request.Minutes, request.Amount);
-        return await ToResultAsync(id, result, db, statuses, warnings);
+        return await ToResultAsync(id, result, db, devices, warnings);
     }
 
-    private static async Task<IResult> StopAsync(int id, SessionService sessions, IVenueDbContext db, DeviceStatuses statuses, SwitchOffWarnings warnings)
+    private static async Task<IResult> StopAsync(int id, SessionService sessions, IVenueDbContext db, IDeviceGateway devices, SwitchOffWarnings warnings)
     {
         var result = await sessions.StopAsync(id);
-        return await ToResultAsync(id, result, db, statuses, warnings);
+        return await ToResultAsync(id, result, db, devices, warnings);
     }
 
     private static async Task<IResult> PriceAsync(int id, int minutes, SessionService sessions)
@@ -69,12 +69,12 @@ public static class SessionEndpoints
         int id,
         Result<Session> result,
         IVenueDbContext db,
-        DeviceStatuses statuses,
+        IDeviceGateway devices,
         SwitchOffWarnings warnings)
     {
         if (result.IsFailure)
         {
-            return await SpotProblems.ForSpotAsync(result.Error, id, db, statuses);
+            return await SpotProblems.ForSpotAsync(result.Error, id, db, devices);
         }
 
         var spot = await db.Spots.FindAsync(id);
@@ -83,7 +83,7 @@ public static class SessionEndpoints
             return SpotProblems.ToProblem(SpotError.NotFound);
         }
 
-        var response = await SpotResponses.BuildAsync(spot, db, statuses, warnings);
+        var response = await SpotResponses.BuildAsync(spot, db, devices, warnings);
         return TypedResults.Ok(response);
     }
 }
