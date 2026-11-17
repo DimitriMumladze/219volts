@@ -17,7 +17,7 @@ public class SessionEndpointTests
 
     private record SessionDto(int Id, DateTime StartedAt, DateTime EndsAt, string StartedBy, decimal TotalCharged);
 
-    private record SpotDto(int Id, string Name, bool? IsOn, SessionDto? Session, bool SwitchOffFailed);
+    private record SpotDto(int Id, string Name, bool? IsOn, SessionDto? Session, bool HasSwitchOffFailed);
 
     private record PriceDto(decimal Amount);
 
@@ -65,7 +65,7 @@ public class SessionEndpointTests
 
         var shown = Assert.Single(spots);
         Assert.Equal(15m, shown.Session!.TotalCharged);
-        Assert.False(shown.SwitchOffFailed);
+        Assert.False(shown.HasSwitchOffFailed);
     }
 
     [Fact]
@@ -123,7 +123,7 @@ public class SessionEndpointTests
         using var factory = new VenueAppFactory();
         var spot = await AddSpotAsync(factory);
         using var client = await StaffClientAsync(factory);
-        factory.Waveshare.IgnoreSet = true;
+        factory.Waveshare.ShouldIgnoreSet = true;
 
         var start = await client.PostAsJsonAsync($"/api/spots/{spot}/session", new { minutes = 60 });
 
@@ -139,16 +139,16 @@ public class SessionEndpointTests
         using var factory = new VenueAppFactory();
         var spot = await AddSpotAsync(factory);
         using var client = await StaffClientAsync(factory);
-        await client.PutAsJsonAsync($"/api/spots/{spot}/state", new { on = true });
+        await client.PutAsJsonAsync($"/api/spots/{spot}/state", new { isOn = true });
         var warnings = factory.Services.GetRequiredService<SwitchOffWarnings>();
         warnings.Add(spot);
 
         var whileOn = await client.GetFromJsonAsync<SpotDto>($"/api/spots/{spot}");
-        await client.PutAsJsonAsync($"/api/spots/{spot}/state", new { on = false });
+        await client.PutAsJsonAsync($"/api/spots/{spot}/state", new { isOn = false });
         var whenOff = await client.GetFromJsonAsync<SpotDto>($"/api/spots/{spot}");
 
-        Assert.True(whileOn!.SwitchOffFailed);
-        Assert.False(whenOff!.SwitchOffFailed);
+        Assert.True(whileOn!.HasSwitchOffFailed);
+        Assert.False(whenOff!.HasSwitchOffFailed);
     }
 
 

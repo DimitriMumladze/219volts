@@ -89,7 +89,7 @@ public class SessionTickServiceTests
         var spotEvents = PublishedEvents.Take(factory).OfType<ISpotEvent>().ToList();
         Assert.False(session.IsRunning);
         Assert.Equal(2, offAttempts);
-        Assert.True(warnings.Has(spot));
+        Assert.True(warnings.HasWarning(spot));
         Assert.Equal("error answer", entry.Details);
         Assert.Contains(new SessionSwitchOffFailed(spot, session.Id), spotEvents);
     }
@@ -112,7 +112,7 @@ public class SessionTickServiceTests
         await DeliverAsync(factory);
 
         var warnings = factory.Services.GetRequiredService<SwitchOffWarnings>();
-        Assert.False(warnings.Has(spot));
+        Assert.False(warnings.HasWarning(spot));
     }
 
     [Fact]
@@ -160,7 +160,7 @@ public class SessionTickServiceTests
         var (panel, spot) = await AddSpotAsync(factory);
         await StartAsync(factory, spot);
         await TurnOffBehindTheBackAsync(factory, panel);
-        factory.Waveshare.IgnoreSet = true;
+        factory.Waveshare.ShouldIgnoreSet = true;
         var setOn = $"set {panel}/{Channel} on";
         var triesBefore = factory.Waveshare.Calls.Count(c => c == setOn);
 
@@ -230,8 +230,8 @@ public class SessionTickServiceTests
         var running = await RunningCountAsync(factory);
         var warnings = factory.Services.GetRequiredService<SwitchOffWarnings>();
         Assert.Equal(0, running);
-        Assert.True(warnings.Has(first));
-        Assert.True(warnings.Has(second));
+        Assert.True(warnings.HasWarning(first));
+        Assert.True(warnings.HasWarning(second));
     }
 
     [Fact]
@@ -262,13 +262,13 @@ public class SessionTickServiceTests
         var ticking = TickAsync(factory);
         SpinWait.SpinUntil(() => factory.Waveshare.Calls.Contains($"set {panel}/{Channel} off"), FiveSeconds);
         var extending = UseSessionsAsync(factory, sessions => sessions.ExtendAsync(spot, 30, null));
-        var extendFinishedEarly = SpinWait.SpinUntil(() => extending.IsCompleted, TimeSpan.FromMilliseconds(300));
+        var hasExtendFinishedEarly = SpinWait.SpinUntil(() => extending.IsCompleted, TimeSpan.FromMilliseconds(300));
         factory.Waveshare.SetGate.SetResult();
         await ticking;
         var extended = await extending;
 
         var charges = await ChargeCountAsync(factory);
-        Assert.False(extendFinishedEarly);
+        Assert.False(hasExtendFinishedEarly);
         Assert.Equal(SessionError.NotRunning, extended.Error);
         Assert.Equal(1, charges);
     }
@@ -287,12 +287,12 @@ public class SessionTickServiceTests
         factory.Waveshare.SetGate = new TaskCompletionSource();
 
         var ticking = TickAsync(factory);
-        var barSwitchedOff = SpinWait.SpinUntil(() => factory.Shelly.Calls.Contains($"set {bar}/1 off"), FiveSeconds);
+        var wasBarSwitchedOff = SpinWait.SpinUntil(() => factory.Shelly.Calls.Contains($"set {bar}/1 off"), FiveSeconds);
         factory.Waveshare.SetGate.SetResult();
         await ticking;
 
         var running = await RunningCountAsync(factory);
-        Assert.True(barSwitchedOff);
+        Assert.True(wasBarSwitchedOff);
         Assert.Contains($"set {panel}/{Channel} off", factory.Waveshare.Calls);
         Assert.Equal(0, running);
     }

@@ -33,23 +33,23 @@ public class SpotService(
     public async Task<Result<Spot>> CreateAsync(string name, int groupId, int? deviceId, int? channel)
     {
         var cleanName = name.Trim();
-        var error = ValidateInput(cleanName, deviceId, channel);
-        if (error is not null)
+        var inputValidation = ValidateInput(cleanName, deviceId, channel);
+        if (inputValidation.IsFailure)
         {
-            return Fail(error);
+            return Fail(inputValidation.Error);
         }
 
         await using var transaction = await db.Database.BeginTransactionAsync();
-        error = await ValidateGroupAsync(groupId);
-        if (error is not null)
+        var groupValidation = await ValidateGroupAsync(groupId);
+        if (groupValidation.IsFailure)
         {
-            return Fail(error);
+            return Fail(groupValidation.Error);
         }
 
-        error = await ValidateAgainstOthersAsync(cleanName, deviceId, channel, ignoredSpotId: null);
-        if (error is not null)
+        var othersValidation = await ValidateAgainstOthersAsync(cleanName, deviceId, channel, ignoredSpotId: null);
+        if (othersValidation.IsFailure)
         {
-            return Fail(error);
+            return Fail(othersValidation.Error);
         }
 
         var code = codes.NewCode();
@@ -87,39 +87,39 @@ public class SpotService(
             return Fail(SpotError.Archived);
         }
 
-        var mappingChanged = spot.DeviceId != deviceId || spot.Channel != channel;
-        var groupChanged = spot.GroupId != groupId;
-        if ((mappingChanged || groupChanged) && actor.Role != Role.Support)
+        var hasMappingChanged = spot.DeviceId != deviceId || spot.Channel != channel;
+        var hasGroupChanged = spot.GroupId != groupId;
+        if ((hasMappingChanged || hasGroupChanged) && actor.Role != Role.Support)
         {
             return Fail(SpotError.OnlyNameChangeAllowed);
         }
 
-        if (mappingChanged && await runningSessions.OnSpotAsync(id))
+        if (hasMappingChanged && await runningSessions.HasSessionOnSpotAsync(id))
         {
             return Fail(SpotError.SessionRunning);
         }
 
         var cleanName = name.Trim();
-        var error = ValidateInput(cleanName, deviceId, channel);
-        if (error is not null)
+        var inputValidation = ValidateInput(cleanName, deviceId, channel);
+        if (inputValidation.IsFailure)
         {
-            return Fail(error);
+            return Fail(inputValidation.Error);
         }
 
         await using var transaction = await db.Database.BeginTransactionAsync();
-        if (groupChanged)
+        if (hasGroupChanged)
         {
-            error = await ValidateGroupAsync(groupId);
-            if (error is not null)
+            var groupValidation = await ValidateGroupAsync(groupId);
+            if (groupValidation.IsFailure)
             {
-                return Fail(error);
+                return Fail(groupValidation.Error);
             }
         }
 
-        error = await ValidateAgainstOthersAsync(cleanName, deviceId, channel, ignoredSpotId: id);
-        if (error is not null)
+        var othersValidation = await ValidateAgainstOthersAsync(cleanName, deviceId, channel, ignoredSpotId: id);
+        if (othersValidation.IsFailure)
         {
-            return Fail(error);
+            return Fail(othersValidation.Error);
         }
 
         var oldGroup = ShowOrNone(spot.GroupId);
@@ -189,7 +189,7 @@ public class SpotService(
         return Result<Spot>.Ok(spot);
     }
 
-    public async Task<Result<Spot>> SwitchAsync(int id, bool on)
+    public async Task<Result<Spot>> SwitchAsync(int id, bool shouldBeOn)
     {
         var actor = currentActor.Get();
         var spot = await reader.FindVisibleAsync(id, actor);
@@ -209,21 +209,23 @@ public class SpotService(
         }
 
         var outlet = new Outlet(deviceId, channel);
-        var switched = await SwitchOutletAsync(outlet, spot.Id, on, actor);
+        var switched = await SwitchOutletAsync(outlet, spot.Id, shouldBeOn, actor);
         if (switched.IsFailure)
         {
-            var reported = await failures.RecordAsync(spot.Id, actor, switched.Error);
-            return Fail(reported);
+            await failures.RecordAsync(spot.Id, actor, switched.Error);
+            var spotError = SwitchFailures.ToSpotError(switched.Error);
+            return Fail(spotError);
         }
 
         var target = AuditTarget.Spot(spot.Id);
 
-        var action = on ? AuditActions.SpotSwitchedOn : AuditActions.SpotSwitchedOff;
+        var action = shouldBeOn ? AuditActions.SpotSwitchedOn : AuditActions.SpotSwitchedOff;
         audit.Record(actor, action, target);
         await db.SaveChangesAsync();
-        logger.LogInformation("Spot {SpotId} switched {State} by {Actor}", spot.Id, on ? "on" : "off", actor.Name);
+        var stateText = shouldBeOn ? "on" : "off";
+        logger.LogInformation("Spot {SpotId} switched {State} by {Actor}", spot.Id, stateText, actor.Name);
 
-        events.Publish(new SpotSwitched(spot.Id, on));
+        events.Publish(new SpotSwitched(spot.Id, shouldBeOn));
         return Result<Spot>.Ok(spot);
     }
 
@@ -241,7 +243,7 @@ public class SpotService(
             return Fail(SpotError.Archived);
         }
 
-        if (await runningSessions.OnSpotAsync(id))
+        if (await runningSessions.HasSessionOnSpotAsync(id))
         {
             return Fail(SpotError.SessionRunning);
         }
@@ -256,55 +258,55 @@ public class SpotService(
     }
 
 
-    private Task<Result<bool>> SwitchOutletAsync(Outlet outlet, int spotId, bool on, AuditActor actor)
+    private Task<Result> SwitchOutletAsync(Outlet outlet, int spotId, bool shouldBeOn, AuditActor actor)
     {
-        if (on)
+        if (shouldBeOn)
         {
-            return devices.SwitchAsync(outlet, true);
+            return devices.SwitchAsync(outlet, shouldBeOn: true);
         }
 
         return sessions.SwitchOffAndEndAsync(outlet, spotId, actor);
     }
 
-    private static string? ValidateInput(string name, int? deviceId, int? channel)
+    private static Result ValidateInput(string name, int? deviceId, int? channel)
     {
         if (name.Length == 0)
         {
-            return SpotError.InvalidName;
+            return Result.Fail(SpotError.InvalidName);
         }
 
         if (name.Length > MaxNameLength)
         {
-            return SpotError.NameTooLong;
+            return Result.Fail(SpotError.NameTooLong);
         }
 
         var hasDevice = deviceId is not null;
         var hasChannel = channel is not null;
         if (hasDevice != hasChannel)
         {
-            return SpotError.InvalidMapping;
+            return Result.Fail(SpotError.InvalidMapping);
         }
 
-        return null;
+        return Result.Ok();
     }
 
-    private async Task<string?> ValidateGroupAsync(int groupId)
+    private async Task<Result> ValidateGroupAsync(int groupId)
     {
         var group = await db.Groups.SingleOrDefaultAsync(g => g.Id == groupId);
         if (group is null)
         {
-            return SpotError.UnknownGroup;
+            return Result.Fail(SpotError.UnknownGroup);
         }
 
         if (group.IsArchived)
         {
-            return SpotError.GroupArchived;
+            return Result.Fail(SpotError.GroupArchived);
         }
 
-        return null;
+        return Result.Ok();
     }
 
-    private async Task<string?> ValidateAgainstOthersAsync(string name, int? deviceId, int? channel, int? ignoredSpotId)
+    private async Task<Result> ValidateAgainstOthersAsync(string name, int? deviceId, int? channel, int? ignoredSpotId)
     {
         if (deviceId is int mappedDeviceId && channel is int mappedChannel)
         {
@@ -312,27 +314,27 @@ public class SpotService(
             var check = await devices.CheckOutletAsync(outlet);
             if (check == OutletCheck.UnknownDevice)
             {
-                return SpotError.UnknownDevice;
+                return Result.Fail(SpotError.UnknownDevice);
             }
 
             if (check == OutletCheck.ChannelOutOfRange)
             {
-                return SpotError.ChannelOutOfRange;
+                return Result.Fail(SpotError.ChannelOutOfRange);
             }
 
             if (await db.Spots.AnyAsync(s => s.DeviceId == mappedDeviceId && s.Channel == mappedChannel && s.Id != ignoredSpotId))
             {
-                return SpotError.ChannelInUse;
+                return Result.Fail(SpotError.ChannelInUse);
             }
         }
 
         var key = name.ToUpperInvariant();
         if (await db.Spots.AnyAsync(s => s.NameKey == key && s.Id != ignoredSpotId))
         {
-            return SpotError.DuplicateName;
+            return Result.Fail(SpotError.DuplicateName);
         }
 
-        return null;
+        return Result.Ok();
     }
 
     private Task<bool> IsCodeTakenAsync(string code)

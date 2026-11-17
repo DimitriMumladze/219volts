@@ -12,47 +12,47 @@ public class SwitchFailures(IVenueDbContext db, IAuditLog audit, ILogger<SwitchF
     private const string ErrorAnswerReason = "error answer";
     private const string MismatchReason = "mismatch";
 
-    public async Task<string> RecordAsync(int spotId, AuditActor actor, string error)
+    public async Task RecordAsync(int spotId, AuditActor actor, string deviceError)
     {
-        var reported = ReportedAs(error);
-        if (reported != error)
+        var isDeviceGone = deviceError == DeviceError.NotFound;
+        if (isDeviceGone)
         {
-            return reported;
+            return;
         }
 
-        Log(spotId, error);
+        Log(spotId, deviceError);
 
-        var reason = ReasonFor(error);
+        var reason = AuditReasonFor(deviceError);
         var target = AuditTarget.Spot(spotId);
         audit.Record(actor, AuditActions.SpotSwitchFailed, target, reason);
         await db.SaveChangesAsync();
-        return error;
     }
 
-    public static string ReportedAs(string error)
+    public static string ToSpotError(string deviceError)
     {
-        if (error == DeviceError.NotFound)
+        var isDeviceGone = deviceError == DeviceError.NotFound;
+        if (isDeviceGone)
         {
             return SpotError.Unmapped;
         }
 
-        return error;
+        return deviceError;
     }
 
-    public void Log(int spotId, string error)
+    public void Log(int spotId, string deviceError)
     {
-        var reason = ReasonFor(error);
+        var reason = AuditReasonFor(deviceError);
         logger.LogWarning("Switching spot {SpotId} failed: {Reason}", spotId, reason);
     }
 
-    public static string ReasonFor(string error)
+    public static string AuditReasonFor(string deviceError)
     {
-        if (error == DeviceError.NoAnswer)
+        if (deviceError == DeviceError.NoAnswer)
         {
             return NoAnswerReason;
         }
 
-        if (error == DeviceError.DidNotObey)
+        if (deviceError == DeviceError.DidNotObey)
         {
             return MismatchReason;
         }

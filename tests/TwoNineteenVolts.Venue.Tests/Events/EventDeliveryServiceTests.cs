@@ -78,11 +78,11 @@ public class EventDeliveryServiceTests
 
         var publish = Task.Run(() => queue.Publish(b));
         await publish.WaitAsync(TimeSpan.FromSeconds(5));
-        var deliveryStillBlocked = !delivery.IsCompleted;
+        var isDeliveryStillBlocked = !delivery.IsCompleted;
 
         blocked.Gate.SetResult();
         await delivery;
-        Assert.True(deliveryStillBlocked);
+        Assert.True(isDeliveryStillBlocked);
         Assert.Equal([a, b], blocked.Events);
     }
 

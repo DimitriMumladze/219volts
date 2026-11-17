@@ -29,12 +29,12 @@ public class ShellyRelayDriverTests
         var driver = DriverFor(handler);
         var device = ShellyWith(channelCount: 4);
 
-        var on = await driver.SetAsync(device, 2, true, CancellationToken.None);
-        var off = await driver.SetAsync(device, 4, false, CancellationToken.None);
+        var switchOn = await driver.SetAsync(device, 2, true, CancellationToken.None);
+        var switchOff = await driver.SetAsync(device, 4, false, CancellationToken.None);
 
         var urls = handler.Requests.Select(u => u.ToString());
-        Assert.True(on.Value);
-        Assert.False(off.Value);
+        Assert.False(switchOn.IsFailure);
+        Assert.False(switchOff.IsFailure);
         Assert.Equal(
             [
                 "http://192.168.10.30:8080/rpc/Switch.Set?id=1&on=true",
@@ -50,7 +50,7 @@ public class ShellyRelayDriverTests
         var driver = DriverFor(handler);
         var device = ShellyWith(channelCount: 1);
 
-        var result = await driver.ReadAsync(device, 1, CancellationToken.None);
+        var result = await driver.ReadIsOnAsync(device, 1, CancellationToken.None);
 
         var url = handler.Requests.Single().ToString();
         Assert.True(result.Value);
@@ -114,7 +114,7 @@ public class ShellyRelayDriverTests
         var driver = DriverFor(handler);
         var device = ShellyWith(channelCount: 1);
 
-        var result = await driver.ReadAsync(device, 1, CancellationToken.None);
+        var result = await driver.ReadIsOnAsync(device, 1, CancellationToken.None);
 
         Assert.Equal(DeviceError.ErrorAnswer, result.Error);
     }
@@ -172,7 +172,7 @@ public class ShellyRelayDriverTests
         var device = ShellyWith(channelCount: 1);
 
         var readAll = await driver.ReadAllAsync(device, CancellationToken.None);
-        var read = await driver.ReadAsync(device, 1, CancellationToken.None);
+        var read = await driver.ReadIsOnAsync(device, 1, CancellationToken.None);
 
         Assert.Equal(DeviceError.ErrorAnswer, readAll.Error);
         Assert.Equal(DeviceError.ErrorAnswer, read.Error);

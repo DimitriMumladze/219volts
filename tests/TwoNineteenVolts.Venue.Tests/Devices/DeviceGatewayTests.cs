@@ -24,7 +24,6 @@ public class DeviceGatewayTests
 
         var state = await UseGatewayAsync(factory, devices => devices.StateOfAsync(outlet));
         Assert.False(result.IsFailure);
-        Assert.True(result.Value);
         Assert.Contains($"set {panel}/3 on", factory.Waveshare.Calls);
         Assert.Contains($"read {panel}/3", factory.Waveshare.Calls);
         Assert.True(state.IsOn);
@@ -36,7 +35,7 @@ public class DeviceGatewayTests
         using var factory = new VenueAppFactory();
         var panel = await AddPanelAsync(factory);
         var outlet = new Outlet(panel, 3);
-        factory.Waveshare.IgnoreSet = true;
+        factory.Waveshare.ShouldIgnoreSet = true;
 
         var result = await UseGatewayAsync(factory, devices => devices.SwitchAsync(outlet, true));
 
@@ -118,18 +117,18 @@ public class DeviceGatewayTests
         var panel = await AddPanelAsync(factory);
         var outlet = new Outlet(panel, 3);
         await UseGatewayAsync(factory, devices => devices.SwitchAsync(outlet, true));
-        bool? stateWhileHolding = null;
+        bool? isOnWhileHolding = null;
 
         await UseGatewayAsync(factory, devices => devices.WithOutletAsync(outlet, control =>
         {
-            stateWhileHolding = control.State.IsOn;
+            isOnWhileHolding = control.State.IsOn;
             control.ForgetState();
-            var done = Result<bool>.Ok(true);
+            var done = Result.Ok();
             return Task.FromResult(done);
         }));
 
         var state = await UseGatewayAsync(factory, devices => devices.StateOfAsync(outlet));
-        Assert.True(stateWhileHolding);
+        Assert.True(isOnWhileHolding);
         Assert.Null(state.IsOn);
     }
 
@@ -156,17 +155,17 @@ public class DeviceGatewayTests
         factory.Waveshare.Gate = new TaskCompletionSource();
 
         var check = CheckAsync(factory);
-        var checkAsked = SpinWait.SpinUntil(() => factory.Waveshare.Calls.Contains($"read-all {panel}"), FiveSeconds);
+        var wasCheckAsked = SpinWait.SpinUntil(() => factory.Waveshare.Calls.Contains($"read-all {panel}"), FiveSeconds);
         var switching = UseGatewayAsync(factory, devices => devices.SwitchAsync(outlet, true));
-        var switchFinishedEarly = SpinWait.SpinUntil(() => switching.IsCompleted, TimeSpan.FromMilliseconds(300));
+        var hasSwitchFinishedEarly = SpinWait.SpinUntil(() => switching.IsCompleted, TimeSpan.FromMilliseconds(300));
         factory.Waveshare.Gate.SetResult();
         await check;
         var switched = await switching;
 
         var state = await UseGatewayAsync(factory, devices => devices.StateOfAsync(outlet));
-        Assert.True(checkAsked);
-        Assert.False(switchFinishedEarly);
-        Assert.True(switched.Value);
+        Assert.True(wasCheckAsked);
+        Assert.False(hasSwitchFinishedEarly);
+        Assert.False(switched.IsFailure);
         Assert.True(state.IsOn);
     }
 
@@ -181,20 +180,20 @@ public class DeviceGatewayTests
         SpinWait.SpinUntil(() => factory.Waveshare.Calls.Count(c => c == $"read-all {panel}") == 2, FiveSeconds);
 
         var errors = new List<string?>();
-        var finishedEarly = new List<bool>();
+        var hasFinishedEarlyPerAttempt = new List<bool>();
         for (var attempt = 1; attempt <= 3; attempt++)
         {
-            var (early, result) = await SwitchGivingUpAsync(factory, new Outlet(panel, 1));
-            finishedEarly.Add(early);
+            var (hasFinishedEarly, result) = await SwitchGivingUpAsync(factory, new Outlet(panel, 1));
+            hasFinishedEarlyPerAttempt.Add(hasFinishedEarly);
             errors.Add(result.Error);
         }
 
         var whileBlocked = await UseGatewayAsync(factory, devices => devices.StateOfAsync(new Outlet(panel, 1)));
         factory.Waveshare.Gate.SetResult();
         await check;
-        Assert.Equal([false, false, false], finishedEarly);
+        Assert.Equal([false, false, false], hasFinishedEarlyPerAttempt);
         Assert.Equal([DeviceError.NoAnswer, DeviceError.NoAnswer, DeviceError.NoAnswer], errors);
-        Assert.False(whileBlocked.DeviceOnline);
+        Assert.False(whileBlocked.IsDeviceOnline);
         Assert.DoesNotContain($"set {panel}/1 on", factory.Waveshare.Calls);
     }
 
@@ -210,17 +209,17 @@ public class DeviceGatewayTests
         {
             held.SetResult();
             await release.Task;
-            return Result<bool>.Ok(true);
+            return Result.Ok();
         }));
         await held.Task.WaitAsync(FiveSeconds);
         var switching = UseGatewayAsync(factory, devices => devices.SwitchAsync(new Outlet(panel, 2), true));
-        var switchFinishedEarly = SpinWait.SpinUntil(() => switching.IsCompleted, TimeSpan.FromMilliseconds(300));
+        var hasSwitchFinishedEarly = SpinWait.SpinUntil(() => switching.IsCompleted, TimeSpan.FromMilliseconds(300));
         release.SetResult();
         await holding;
         var switched = await switching.WaitAsync(FiveSeconds);
 
-        Assert.False(switchFinishedEarly);
-        Assert.True(switched.Value);
+        Assert.False(hasSwitchFinishedEarly);
+        Assert.False(switched.IsFailure);
     }
 
     [Fact]
@@ -238,7 +237,7 @@ public class DeviceGatewayTests
 
         factory.Waveshare.Gate.SetResult();
         await check;
-        Assert.True(switched.Value);
+        Assert.False(switched.IsFailure);
     }
 
     [Fact]
@@ -261,16 +260,16 @@ public class DeviceGatewayTests
         try
         {
             var first = UseGatewayAsync(factory, devices => devices.SwitchAsync(new Outlet(board, 1), true));
-            var firstConnected = SpinWait.SpinUntil(() => CountOf(connections) == 1, FiveSeconds);
+            var isFirstConnected = SpinWait.SpinUntil(() => CountOf(connections) == 1, FiveSeconds);
             var second = UseGatewayAsync(factory, devices => devices.SwitchAsync(new Outlet(board, 2), true));
             await Task.Delay(TimeSpan.FromMilliseconds(500));
             var connectionsWhileFirstWaits = CountOf(connections);
-            var firstStillWaiting = !first.IsCompleted;
+            var isFirstStillWaiting = !first.IsCompleted;
             await Task.WhenAll(first, second);
             var connectionsAtTheEnd = CountOf(connections);
 
-            Assert.True(firstConnected);
-            Assert.True(firstStillWaiting);
+            Assert.True(isFirstConnected);
+            Assert.True(isFirstStillWaiting);
             Assert.Equal(1, connectionsWhileFirstWaits);
             Assert.Equal(2, connectionsAtTheEnd);
         }
@@ -309,7 +308,7 @@ public class DeviceGatewayTests
     }
 
 
-    private static async Task<(bool FinishedEarly, Result<bool> Result)> SwitchGivingUpAsync(VenueAppFactory factory, Outlet outlet)
+    private static async Task<(bool HasFinishedEarly, Result Result)> SwitchGivingUpAsync(VenueAppFactory factory, Outlet outlet)
     {
         var oneTick = TimeSpan.FromTicks(1);
         var justUnderTwoSeconds = TimeSpan.FromSeconds(2) - oneTick;
@@ -319,11 +318,11 @@ public class DeviceGatewayTests
         factory.Time.Advance(justUnderTwoSeconds);
         var grace = Task.Delay(TimeSpan.FromMilliseconds(500));
         var first = await Task.WhenAny(switching, grace);
-        var finishedEarly = first == switching;
+        var hasFinishedEarly = first == switching;
         factory.Time.Advance(oneTick);
         var result = await switching.WaitAsync(FiveSeconds);
 
-        return (finishedEarly, result);
+        return (hasFinishedEarly, result);
     }
 
     private static Task CheckAsync(VenueAppFactory factory) =>

@@ -83,7 +83,7 @@ public class SessionRulesTests
         using var factory = new VenueAppFactory();
         var (_, spot) = await AddSpotAsync(factory);
         await StartAsync(factory, spot);
-        factory.Waveshare.IgnoreSet = true;
+        factory.Waveshare.ShouldIgnoreSet = true;
 
         var result = await UseSpotsAsync(factory, Staff, spots => spots.SwitchAsync(spot, false));
 

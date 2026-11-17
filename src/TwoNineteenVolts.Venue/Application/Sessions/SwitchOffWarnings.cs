@@ -21,7 +21,7 @@ public class SwitchOffWarnings
         }
     }
 
-    public bool Has(int spotId)
+    public bool HasWarning(int spotId)
     {
         lock (_lock)
         {

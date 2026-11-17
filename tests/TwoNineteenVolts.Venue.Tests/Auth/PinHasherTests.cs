@@ -12,9 +12,9 @@ public class PinHasherTests
         var hash = hasher.Hash("0123");
 
         Assert.NotEqual("0123", hash);
-        var rightPin = hasher.Verify(hash, "0123");
-        var wrongPin = hasher.Verify(hash, "0124");
-        Assert.True(rightPin);
-        Assert.False(wrongPin);
+        var isRightPinMatch = hasher.IsMatch(hash, "0123");
+        var isWrongPinMatch = hasher.IsMatch(hash, "0124");
+        Assert.True(isRightPinMatch);
+        Assert.False(isWrongPinMatch);
     }
 }

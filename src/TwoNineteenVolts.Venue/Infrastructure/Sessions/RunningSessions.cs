@@ -6,12 +6,12 @@ namespace TwoNineteenVolts.Venue.Infrastructure.Sessions;
 
 public class RunningSessions(VenueDbContext db) : IRunningSessions
 {
-    public Task<bool> OnSpotAsync(int spotId)
+    public Task<bool> HasSessionOnSpotAsync(int spotId)
     {
         return db.Sessions.AnyAsync(s => s.SpotId == spotId && s.EndedAt == null);
     }
 
-    public Task<bool> OnDeviceAsync(int deviceId)
+    public Task<bool> HasSessionOnDeviceAsync(int deviceId)
     {
         var spotsOnDevice = db.Spots
             .Where(s => s.DeviceId == deviceId)

@@ -36,13 +36,14 @@ public class LoginService(IVenueDbContext db, IPinHasher hasher, LoginThrottle t
 
     private async Task<LoginResult> CheckSecretAsync(User user, string secret)
     {
-        var retryAfter = throttle.TryStartAttempt(user.Id);
-        if (retryAfter is TimeSpan wait)
+        var isAttemptAllowed = throttle.TryStartAttempt(user.Id, out var retryAfter);
+        if (!isAttemptAllowed)
         {
-            return LoginResult.Throttled(wait);
+            return LoginResult.Throttled(retryAfter);
         }
 
-        if (!hasher.Verify(user.SecretHash, secret))
+        var isSecretRight = hasher.IsMatch(user.SecretHash, secret);
+        if (!isSecretRight)
         {
             var target = AuditTarget.User(user.Id);
             await RecordFailureAsync(target);

@@ -12,11 +12,11 @@ public class DeviceGateway(
     DeviceStatuses statuses,
     TimeProvider time) : IDeviceGateway
 {
-    private static readonly AsyncLocal<bool> Holding = new();
+    private static readonly AsyncLocal<bool> IsHolding = new();
 
-    public Task<Result<bool>> SwitchAsync(Outlet outlet, bool on)
+    public Task<Result> SwitchAsync(Outlet outlet, bool shouldBeOn)
     {
-        return WithOutletAsync(outlet, control => control.SwitchAsync(on));
+        return WithOutletAsync(outlet, control => control.SwitchAsync(shouldBeOn));
     }
 
     public async Task<OutletState> StateOfAsync(Outlet outlet)
@@ -51,20 +51,14 @@ public class DeviceGateway(
         return states;
     }
 
-    public async Task<Result<T>> WithOutletAsync<T>(Outlet outlet, Func<IOutletControl, Task<Result<T>>> steps)
+    public Task<Result> WithOutletAsync(Outlet outlet, Func<IOutletControl, Task<Result>> steps)
     {
-        ThrowIfHolding();
-        var device = await db.Devices.AsNoTracking().SingleOrDefaultAsync(d => d.Id == outlet.DeviceId);
-        if (device is null)
-        {
-            return Result<T>.Fail(DeviceError.NotFound);
-        }
+        return HoldOutletAsync(outlet, steps, Result.Fail);
+    }
 
-        return await HoldAsync(device, driver =>
-        {
-            var control = new OutletControl(device, outlet.Channel, driver, statuses, time);
-            return steps(control);
-        });
+    public Task<Result<T>> WithOutletAsync<T>(Outlet outlet, Func<IOutletControl, Task<Result<T>>> steps)
+    {
+        return HoldOutletAsync(outlet, steps, Result<T>.Fail);
     }
 
     public async Task<OutletCheck> CheckOutletAsync(Outlet outlet)
@@ -85,22 +79,44 @@ public class DeviceGateway(
 
     public Task<Result<IReadOnlyList<bool>>> CheckDeviceAsync(Device device)
     {
-        return HoldAsync(device, driver => ReadAllAsync(device, driver));
+        return HoldAsync(device, driver => ReadAllAsync(device, driver), Result<IReadOnlyList<bool>>.Fail);
     }
 
 
-    private async Task<Result<T>> HoldAsync<T>(Device device, Func<IRelayDriver, Task<Result<T>>> work)
+    private async Task<TResult> HoldOutletAsync<TResult>(
+        Outlet outlet,
+        Func<IOutletControl, Task<TResult>> steps,
+        Func<string, TResult> failWith)
+    {
+        ThrowIfHolding();
+        var device = await db.Devices.AsNoTracking().SingleOrDefaultAsync(d => d.Id == outlet.DeviceId);
+        if (device is null)
+        {
+            return failWith(DeviceError.NotFound);
+        }
+
+        return await HoldAsync(device, driver =>
+        {
+            var control = new OutletControl(device, outlet.Channel, driver, statuses, time);
+            return steps(control);
+        }, failWith);
+    }
+
+    private async Task<TResult> HoldAsync<TResult>(
+        Device device,
+        Func<IRelayDriver, Task<TResult>> work,
+        Func<string, TResult> failWith)
     {
         ThrowIfHolding();
         var deviceLock = locks.For(device.Id);
-        var entered = await EnterAsync(deviceLock);
-        if (!entered)
+        var hasEntered = await TryEnterAsync(deviceLock);
+        if (!hasEntered)
         {
-            statuses.RecordOutcome(device.Id, DeviceError.NoAnswer);
-            return Result<T>.Fail(DeviceError.NoAnswer);
+            statuses.RecordMiss(device.Id);
+            return failWith(DeviceError.NoAnswer);
         }
 
-        Holding.Value = true;
+        IsHolding.Value = true;
         try
         {
             var driver = drivers.For(device.Kind);
@@ -108,12 +124,12 @@ public class DeviceGateway(
         }
         finally
         {
-            Holding.Value = false;
+            IsHolding.Value = false;
             deviceLock.Release();
         }
     }
 
-    private async Task<bool> EnterAsync(SemaphoreSlim deviceLock)
+    private async Task<bool> TryEnterAsync(SemaphoreSlim deviceLock)
     {
         using var timeout = new CancellationTokenSource(RelayCall.Timeout, time);
         try
@@ -140,7 +156,7 @@ public class DeviceGateway(
 
     private static void ThrowIfHolding()
     {
-        if (Holding.Value)
+        if (IsHolding.Value)
         {
             throw new InvalidOperationException("A device is already held in this flow; never hold two at once.");
         }

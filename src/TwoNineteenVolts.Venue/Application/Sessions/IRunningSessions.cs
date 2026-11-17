@@ -2,7 +2,7 @@ namespace TwoNineteenVolts.Venue.Application.Sessions;
 
 public interface IRunningSessions
 {
-    Task<bool> OnSpotAsync(int spotId);
+    Task<bool> HasSessionOnSpotAsync(int spotId);
 
-    Task<bool> OnDeviceAsync(int deviceId);
+    Task<bool> HasSessionOnDeviceAsync(int deviceId);
 }

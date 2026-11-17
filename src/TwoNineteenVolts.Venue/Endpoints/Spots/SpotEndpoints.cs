@@ -97,7 +97,7 @@ public static class SpotEndpoints
         IVenueDbContext db,
         IDeviceGateway devices)
     {
-        var result = await spots.SwitchAsync(id, request.On);
+        var result = await spots.SwitchAsync(id, request.IsOn);
         if (result.IsFailure)
         {
             return await SpotProblems.ForSpotAsync(result.Error, id, db, devices);

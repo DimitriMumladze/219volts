@@ -14,29 +14,30 @@ public class OutletControl(Device device, int channel, IRelayDriver driver, Devi
         }
     }
 
-    public async Task<Result<bool>> SwitchAsync(bool on)
+    public async Task<Result> SwitchAsync(bool shouldBeOn)
     {
-        var set = await RelayCall.RunAsync(device, statuses, time, token => driver.SetAsync(device, channel, on, token));
+        var set = await RelayCall.RunAsync(device, statuses, time, token => driver.SetAsync(device, channel, shouldBeOn, token));
         if (set.IsFailure)
         {
             statuses.ForgetChannel(device.Id, channel);
             return set;
         }
 
-        var read = await RelayCall.RunAsync(device, statuses, time, token => driver.ReadAsync(device, channel, token));
-        if (read.IsFailure)
+        var readBack = await RelayCall.RunAsync(device, statuses, time, token => driver.ReadIsOnAsync(device, channel, token));
+        if (readBack.IsFailure)
         {
             statuses.ForgetChannel(device.Id, channel);
-            return read;
+            return Result.Fail(readBack.Error);
         }
 
-        statuses.StoreChannel(device.Id, device.ChannelCount, channel, read.Value);
-        if (read.Value != on)
+        var isOn = readBack.Value;
+        statuses.StoreChannel(device.Id, device.ChannelCount, channel, isOn);
+        if (isOn != shouldBeOn)
         {
-            return Result<bool>.Fail(DeviceError.DidNotObey);
+            return Result.Fail(DeviceError.DidNotObey);
         }
 
-        return read;
+        return Result.Ok();
     }
 
     public void ForgetState()

@@ -88,7 +88,8 @@ public class SpotReader(IVenueDbContext db, IDeviceGateway devices, SwitchOffWar
             return new SpotView(spot.Id, spot.Code, spot.Name, group.Id, group.Name, null, null, null, null, null, null, spot.IsArchived, spot.CreatedAt, session, false);
         }
 
-        var switchOffFailed = warnings.Has(spot.Id) && state.IsOn != false;
+        var isKnownOff = state.IsOn == false;
+        var hasSwitchOffFailed = warnings.HasWarning(spot.Id) && !isKnownOff;
 
         return new SpotView(
             spot.Id,
@@ -100,12 +101,12 @@ public class SpotReader(IVenueDbContext db, IDeviceGateway devices, SwitchOffWar
             state.DeviceName,
             spot.Channel,
             state.IsOn,
-            state.DeviceOnline,
+            state.IsDeviceOnline,
             state.LastSeen,
             spot.IsArchived,
             spot.CreatedAt,
             session,
-            switchOffFailed);
+            hasSwitchOffFailed);
     }
 
     private static OutletState? StateOf(Spot spot, Lookups lookups)

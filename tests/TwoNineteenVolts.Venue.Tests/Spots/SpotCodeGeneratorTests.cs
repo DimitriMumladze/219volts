@@ -13,8 +13,8 @@ public class SpotCodeGeneratorTests
         for (var attempt = 1; attempt <= 100; attempt++)
         {
             var code = generator.NewCode();
-            var matches = Regex.IsMatch(code, "^[a-z0-9]{6}$");
-            Assert.True(matches, code);
+            var isCodeShapeRight = Regex.IsMatch(code, "^[a-z0-9]{6}$");
+            Assert.True(isCodeShapeRight, code);
         }
     }
 

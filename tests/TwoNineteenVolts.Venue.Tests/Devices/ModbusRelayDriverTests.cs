@@ -31,13 +31,13 @@ public class ModbusRelayDriverTests
         var driver = new ModbusRelayDriver();
         var device = BoardOn(port, channelCount: 16);
 
-        var on = await driver.SetAsync(device, 3, true, CancellationToken.None);
+        var switchOn = await driver.SetAsync(device, 3, true, CancellationToken.None);
         var coilTwo = CoilOf(server, 2);
-        var off = await driver.SetAsync(device, 3, false, CancellationToken.None);
+        var switchOff = await driver.SetAsync(device, 3, false, CancellationToken.None);
         var coilTwoAfterOff = CoilOf(server, 2);
 
-        Assert.True(on.Value);
-        Assert.False(off.Value);
+        Assert.False(switchOn.IsFailure);
+        Assert.False(switchOff.IsFailure);
         Assert.True(coilTwo);
         Assert.False(coilTwoAfterOff);
     }
@@ -50,8 +50,8 @@ public class ModbusRelayDriverTests
         var driver = new ModbusRelayDriver();
         var device = BoardOn(port, channelCount: 16);
 
-        var channelFive = await driver.ReadAsync(device, 5, CancellationToken.None);
-        var channelSix = await driver.ReadAsync(device, 6, CancellationToken.None);
+        var channelFive = await driver.ReadIsOnAsync(device, 5, CancellationToken.None);
+        var channelSix = await driver.ReadIsOnAsync(device, 6, CancellationToken.None);
 
         Assert.True(channelFive.Value);
         Assert.False(channelSix.Value);

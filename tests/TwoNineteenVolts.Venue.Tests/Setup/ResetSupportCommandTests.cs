@@ -85,7 +85,7 @@ public class ResetSupportCommandTests
         var db = scope.ServiceProvider.GetRequiredService<VenueDbContext>();
         var hasher = scope.ServiceProvider.GetRequiredService<IPinHasher>();
         var user = await db.Users.SingleAsync(u => u.Id == userId);
-        return hasher.Verify(user.SecretHash, password);
+        return hasher.IsMatch(user.SecretHash, password);
     }
 
     private static async Task<int> AuditCountAsync(VenueAppFactory factory)

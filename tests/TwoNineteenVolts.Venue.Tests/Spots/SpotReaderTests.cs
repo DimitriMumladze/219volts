@@ -23,7 +23,7 @@ public class SpotReaderTests
         var panel = await AddPanelAsync(factory);
         await TestSpots.AddAsync(factory, "Billiard 1", panel, 1);
         await TestSpots.AddAsync(factory, "Tennis 1", null, null);
-        await TestSpots.AddAsync(factory, "Old table", null, null, archived: true);
+        await TestSpots.AddAsync(factory, "Old table", null, null, isArchived: true);
 
         var views = await UseReaderAsync(factory, reader => reader.ViewAllAsync(Staff));
 
@@ -55,7 +55,7 @@ public class SpotReaderTests
         var panel = await AddPanelAsync(factory);
         await TestSpots.AddAsync(factory, "Tennis 1", null, null);
         await TestSpots.AddAsync(factory, "Billiard 1", panel, 1);
-        await TestSpots.AddAsync(factory, "Old table", null, null, archived: true);
+        await TestSpots.AddAsync(factory, "Old table", null, null, isArchived: true);
 
         var views = await UseReaderAsync(factory, reader => reader.ViewAllAsync(Support));
 
@@ -98,11 +98,11 @@ public class SpotReaderTests
         Assert.Equal("Panel 1", view.DeviceName);
         Assert.Equal(3, view.Channel);
         Assert.True(view.IsOn);
-        Assert.True(view.DeviceOnline);
+        Assert.True(view.IsDeviceOnline);
         Assert.Equal(now, view.DeviceLastSeen);
         Assert.Equal(1500, view.Session!.TotalChargedTetri);
         Assert.Equal("Gio", view.Session.StartedBy);
-        Assert.True(view.SwitchOffFailed);
+        Assert.True(view.HasSwitchOffFailed);
     }
 
     [Fact]
@@ -120,9 +120,9 @@ public class SpotReaderTests
         Assert.Null(view.DeviceName);
         Assert.Null(view.Channel);
         Assert.Null(view.IsOn);
-        Assert.Null(view.DeviceOnline);
+        Assert.Null(view.IsDeviceOnline);
         Assert.Null(view.DeviceLastSeen);
-        Assert.False(view.SwitchOffFailed);
+        Assert.False(view.HasSwitchOffFailed);
     }
 
 

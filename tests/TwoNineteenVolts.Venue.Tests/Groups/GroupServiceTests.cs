@@ -162,7 +162,7 @@ public class GroupServiceTests
     public async Task Archived_groups_keep_their_name()
     {
         using var factory = new VenueAppFactory();
-        await TestGroups.AddAsync(factory, "Billiards", archived: true);
+        await TestGroups.AddAsync(factory, "Billiards", isArchived: true);
 
         var result = await UseServiceAsync(factory, Support, groups => groups.CreateAsync("Billiards", 10m));
 
@@ -243,7 +243,7 @@ public class GroupServiceTests
     {
         using var factory = new VenueAppFactory();
         var id = await TestGroups.AddAsync(factory, "Billiards");
-        await TestSpots.AddAsync(factory, "Old table", null, null, archived: true, groupId: id);
+        await TestSpots.AddAsync(factory, "Old table", null, null, isArchived: true, groupId: id);
 
         var result = await UseServiceAsync(factory, Support, groups => groups.ArchiveAsync(id));
 
@@ -254,7 +254,7 @@ public class GroupServiceTests
     public async Task Archived_group_cannot_be_changed()
     {
         using var factory = new VenueAppFactory();
-        var id = await TestGroups.AddAsync(factory, "Billiards", archived: true);
+        var id = await TestGroups.AddAsync(factory, "Billiards", isArchived: true);
 
         var rename = await UseServiceAsync(factory, Manager, groups => groups.RenameAsync(id, "Pool"));
         var rate = await UseServiceAsync(factory, Manager, groups => groups.SetRateAsync(id, 12m));

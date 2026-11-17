@@ -32,7 +32,7 @@ public class SessionService(
 
     public async Task<Result<long>> PriceAsync(int spotId, int minutes)
     {
-        if (!AreValid(minutes))
+        if (!AreMinutesInRange(minutes))
         {
             return Result<long>.Fail(SessionError.InvalidMinutes);
         }
@@ -58,21 +58,20 @@ public class SessionService(
         }
 
         var charge = prepared.Value;
-        var entered = false;
+        var hasEnteredHold = false;
         var started = await devices.WithOutletAsync(charge.Target.Outlet, control =>
         {
-            entered = true;
+            hasEnteredHold = true;
             return StartInsideHoldAsync(control, charge, actor);
         });
         if (started.IsFailure)
         {
-            if (entered)
+            if (hasEnteredHold)
             {
                 return started;
             }
 
-            var reported = await failures.RecordAsync(spotId, actor, started.Error);
-            return Fail(reported);
+            return await FailOutsideHoldAsync(spotId, actor, started.Error);
         }
 
         var session = started.Value;
@@ -94,8 +93,8 @@ public class SessionService(
         var extended = await devices.WithOutletAsync(charge.Target.Outlet, _ => ExtendInsideHoldAsync(charge, actor));
         if (extended.IsFailure)
         {
-            var reported = SwitchFailures.ReportedAs(extended.Error);
-            return Fail(reported);
+            var spotError = SwitchFailures.ToSpotError(extended.Error);
+            return Fail(spotError);
         }
 
         var session = extended.Value;
@@ -113,22 +112,21 @@ public class SessionService(
         }
 
         var target = found.Value;
-        var entered = false;
+        var hasEnteredHold = false;
         var stopped = await devices.WithOutletAsync(target.Outlet, control =>
         {
-            entered = true;
+            hasEnteredHold = true;
             return StopInsideHoldAsync(control, target, actor);
         });
-        if (stopped.IsFailure && !entered)
+        if (stopped.IsFailure && !hasEnteredHold)
         {
-            var reported = await failures.RecordAsync(spotId, actor, stopped.Error);
-            return Fail(reported);
+            return await FailOutsideHoldAsync(spotId, actor, stopped.Error);
         }
 
         return stopped;
     }
 
-    public async Task<List<int>> DueDeviceIdsAsync()
+    public async Task<List<int>> FindDeviceIdsWithDueSessionsAsync()
     {
         var now = time.GetUtcNow().UtcDateTime;
         var deviceIds = await db.Sessions
@@ -190,7 +188,13 @@ public class SessionService(
                 return;
             }
 
-            if (!states.TryGetValue(item.Outlet, out var state) || state.IsOn != false)
+            if (!states.TryGetValue(item.Outlet, out var state))
+            {
+                continue;
+            }
+
+            var isKnownOff = state.IsOn == false;
+            if (!isKnownOff)
             {
                 continue;
             }
@@ -199,18 +203,18 @@ public class SessionService(
         }
     }
 
-    public Task<Result<bool>> SwitchOffAndEndAsync(Outlet outlet, int spotId, AuditActor actor)
+    public Task<Result> SwitchOffAndEndAsync(Outlet outlet, int spotId, AuditActor actor)
     {
         return devices.WithOutletAsync(outlet, control => SwitchOffAndEndInsideHoldAsync(control, spotId, actor));
     }
 
 
-    private async Task<Result<bool>> SwitchOffAndEndInsideHoldAsync(IOutletControl control, int spotId, AuditActor actor)
+    private async Task<Result> SwitchOffAndEndInsideHoldAsync(IOutletControl control, int spotId, AuditActor actor)
     {
-        var switched = await control.SwitchAsync(false);
-        if (switched.IsFailure)
+        var switchOff = await control.SwitchAsync(shouldBeOn: false);
+        if (switchOff.IsFailure)
         {
-            return switched;
+            return switchOff;
         }
 
         var session = await RunningSessionAsync(spotId);
@@ -219,7 +223,7 @@ public class SessionService(
             await EndInsideHoldAsync(session, SessionEndReason.ManualOff, actor);
         }
 
-        return switched;
+        return Result.Ok();
     }
 
     private async Task EndInsideHoldAsync(Session session, SessionEndReason reason, AuditActor actor)
@@ -246,78 +250,80 @@ public class SessionService(
         events.Publish(ended);
     }
 
-    private async Task<Result<bool>> EndDueInsideHoldAsync(IOutletControl control, int spotId, AuditActor actor)
+    private async Task<Result> EndDueInsideHoldAsync(IOutletControl control, int spotId, AuditActor actor)
     {
         var now = time.GetUtcNow().UtcDateTime;
         var session = await RunningSessionAsync(spotId);
         if (session is null || session.EndsAt > now)
         {
-            return Result<bool>.Ok(false);
+            return Result.Ok();
         }
 
-        var error = await SwitchOffAsync(control);
-        if (error is not null)
-        {
-            error = await SwitchOffAsync(control);
-        }
-
+        var switchOff = await SwitchOffWithOneRetryAsync(control);
         await EndInsideHoldAsync(session, SessionEndReason.TimeUp, actor);
-        if (error is not null)
+        if (switchOff.IsFailure)
         {
-            await RecordSwitchOffFailedAsync(session, actor, error);
+            await RecordSwitchOffFailedAsync(session, actor, switchOff.Error);
         }
 
-        return Result<bool>.Ok(true);
+        return Result.Ok();
     }
 
-    private static async Task<string?> SwitchOffAsync(IOutletControl control)
+    private static async Task<Result> SwitchOffWithOneRetryAsync(IOutletControl control)
     {
-        var switched = await control.SwitchAsync(false);
-        return switched.Error;
+        var firstTry = await control.SwitchAsync(shouldBeOn: false);
+        if (firstTry.IsFailure)
+        {
+            var secondTry = await control.SwitchAsync(shouldBeOn: false);
+            return secondTry;
+        }
+
+        return firstTry;
     }
 
-    private async Task RecordSwitchOffFailedAsync(Session session, AuditActor actor, string error)
+    private async Task RecordSwitchOffFailedAsync(Session session, AuditActor actor, string deviceError)
     {
-        failures.Log(session.SpotId, error);
+        failures.Log(session.SpotId, deviceError);
         warnings.Add(session.SpotId);
         var target = AuditTarget.Spot(session.SpotId);
-        var reason = SwitchFailures.ReasonFor(error);
+        var reason = SwitchFailures.AuditReasonFor(deviceError);
         audit.Record(actor, AuditActions.SessionSwitchOffFailed, target, reason);
         await db.SaveChangesAsync();
         events.Publish(new SessionSwitchOffFailed(session.SpotId, session.Id));
     }
 
-    private async Task<Result<bool>> RestoreInsideHoldAsync(IOutletControl control, int spotId)
+    private async Task<Result> RestoreInsideHoldAsync(IOutletControl control, int spotId)
     {
         var now = time.GetUtcNow().UtcDateTime;
         var session = await RunningSessionAsync(spotId);
         if (session is null || session.EndsAt <= now)
         {
-            return Result<bool>.Ok(false);
+            return Result.Ok();
         }
 
-        if (control.State.IsOn != false)
+        var isKnownOff = control.State.IsOn == false;
+        if (!isKnownOff)
         {
-            return Result<bool>.Ok(false);
+            return Result.Ok();
         }
 
-        var switched = await control.SwitchAsync(true);
-        if (switched.IsFailure)
+        var switchOn = await control.SwitchAsync(shouldBeOn: true);
+        if (switchOn.IsFailure)
         {
-            if (switched.Error == DeviceError.DidNotObey)
+            if (switchOn.Error == DeviceError.DidNotObey)
             {
                 control.ForgetState();
             }
 
-            logger.LogWarning("Drift fix for spot {SpotId} failed: {Error}", spotId, switched.Error);
-            return Result<bool>.Ok(false);
+            logger.LogWarning("Drift fix for spot {SpotId} failed: {Error}", spotId, switchOn.Error);
+            return switchOn;
         }
 
         var target = AuditTarget.Spot(spotId);
         audit.Record(AuditActor.DriftFix, AuditActions.SessionRestored, target);
         await db.SaveChangesAsync();
         events.Publish(new SessionRestored(spotId, session.Id));
-        return Result<bool>.Ok(true);
+        return Result.Ok();
     }
 
     private async Task<Result<Session>> StartInsideHoldAsync(IOutletControl control, PreparedCharge charge, AuditActor actor)
@@ -329,11 +335,11 @@ public class SessionService(
             return Fail(SessionError.AlreadyRunning);
         }
 
-        var switched = await control.SwitchAsync(true);
-        if (switched.IsFailure)
+        var switchOn = await control.SwitchAsync(shouldBeOn: true);
+        if (switchOn.IsFailure)
         {
-            await failures.RecordAsync(spotId, actor, switched.Error);
-            return Fail(switched.Error);
+            await failures.RecordAsync(spotId, actor, switchOn.Error);
+            return Fail(switchOn.Error);
         }
 
         var now = time.GetUtcNow().UtcDateTime;
@@ -375,11 +381,11 @@ public class SessionService(
             return Fail(SessionError.NotRunning);
         }
 
-        var error = await SwitchOffAsync(control);
-        if (error is not null)
+        var switchOff = await control.SwitchAsync(shouldBeOn: false);
+        if (switchOff.IsFailure)
         {
-            await failures.RecordAsync(spotId, actor, error);
-            return Fail(error);
+            await failures.RecordAsync(spotId, actor, switchOff.Error);
+            return Fail(switchOff.Error);
         }
 
         await EndInsideHoldAsync(session, SessionEndReason.Stopped, actor);
@@ -408,7 +414,7 @@ public class SessionService(
 
     private async Task<Result<PreparedCharge>> PrepareChargeAsync(int spotId, int minutes, decimal? amount, AuditActor actor)
     {
-        if (!AreValid(minutes))
+        if (!AreMinutesInRange(minutes))
         {
             return Result<PreparedCharge>.Fail(SessionError.InvalidMinutes);
         }
@@ -420,14 +426,14 @@ public class SessionService(
         }
 
         var target = found.Value;
-        var computed = SessionPricing.PriceTetri(minutes, target.HourlyRateTetri);
-        var charged = SessionPricing.ChargedTetri(amount, computed);
-        if (charged is not long chargedTetri)
+        var computedTetri = SessionPricing.PriceTetri(minutes, target.HourlyRateTetri);
+        var charged = SessionPricing.ChargedTetri(amount, computedTetri);
+        if (charged.IsFailure)
         {
-            return Result<PreparedCharge>.Fail(SessionError.InvalidAmount);
+            return Result<PreparedCharge>.Fail(charged.Error);
         }
 
-        var prepared = new PreparedCharge(target, minutes, computed, chargedTetri);
+        var prepared = new PreparedCharge(target, minutes, computedTetri, charged.Value);
         return Result<PreparedCharge>.Ok(prepared);
     }
 
@@ -455,12 +461,19 @@ public class SessionService(
         return Result<SpotTarget>.Ok(target);
     }
 
+    private async Task<Result<Session>> FailOutsideHoldAsync(int spotId, AuditActor actor, string deviceError)
+    {
+        await failures.RecordAsync(spotId, actor, deviceError);
+        var spotError = SwitchFailures.ToSpotError(deviceError);
+        return Fail(spotError);
+    }
+
     private Task<Session?> RunningSessionAsync(int spotId)
     {
         return db.Sessions.SingleOrDefaultAsync(s => s.SpotId == spotId && s.EndedAt == null);
     }
 
-    private static bool AreValid(int minutes)
+    private static bool AreMinutesInRange(int minutes)
     {
         return minutes >= MinMinutes && minutes <= MaxMinutes;
     }

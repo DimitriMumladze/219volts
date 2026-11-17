@@ -19,7 +19,7 @@ public class FakeRelayDriver(DeviceKind kind) : IRelayDriver
 
     public string? ReadError { get; set; }
 
-    public bool IgnoreSet { get; set; }
+    public bool ShouldIgnoreSet { get; set; }
 
     public TaskCompletionSource? Gate { get; set; }
 
@@ -58,7 +58,7 @@ public class FakeRelayDriver(DeviceKind kind) : IRelayDriver
         return Result<IReadOnlyList<bool>>.Ok(answer);
     }
 
-    public Task<Result<bool>> ReadAsync(Device device, int channel, CancellationToken cancellationToken)
+    public Task<Result<bool>> ReadIsOnAsync(Device device, int channel, CancellationToken cancellationToken)
     {
         Record($"read {device.Id}/{channel}");
         var error = Error ?? ReadError;
@@ -68,14 +68,15 @@ public class FakeRelayDriver(DeviceKind kind) : IRelayDriver
             return Task.FromResult(failure);
         }
 
-        var state = StatesOf(device)[channel - 1];
-        var success = Result<bool>.Ok(state);
+        var isOn = StatesOf(device)[channel - 1];
+        var success = Result<bool>.Ok(isOn);
         return Task.FromResult(success);
     }
 
-    public async Task<Result<bool>> SetAsync(Device device, int channel, bool on, CancellationToken cancellationToken)
+    public async Task<Result> SetAsync(Device device, int channel, bool shouldBeOn, CancellationToken cancellationToken)
     {
-        Record($"set {device.Id}/{channel} {(on ? "on" : "off")}");
+        var stateText = shouldBeOn ? "on" : "off";
+        Record($"set {device.Id}/{channel} {stateText}");
         if (SetGate is not null)
         {
             await SetGate.Task;
@@ -83,18 +84,18 @@ public class FakeRelayDriver(DeviceKind kind) : IRelayDriver
 
         if (Error is not null)
         {
-            return Result<bool>.Fail(Error);
+            return Result.Fail(Error);
         }
 
-        if (!IgnoreSet)
+        if (!ShouldIgnoreSet)
         {
             lock (_lock)
             {
-                StatesOf(device)[channel - 1] = on;
+                StatesOf(device)[channel - 1] = shouldBeOn;
             }
         }
 
-        return Result<bool>.Ok(on);
+        return Result.Ok();
     }
 
 

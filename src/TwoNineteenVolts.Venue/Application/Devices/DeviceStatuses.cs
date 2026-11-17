@@ -32,19 +32,21 @@ public class DeviceStatuses(TimeProvider time, IEventQueue events, ILogger<Devic
         return new OutletState(isOn, status.IsOnline, status.LastSeen, deviceName);
     }
 
-    public void RecordOutcome(int deviceId, string? error)
+    public void RecordAnswer(int deviceId)
     {
         lock (_lock)
         {
             var entry = GetOrCreateEntry(deviceId);
-            if (error == DeviceError.NoAnswer)
-            {
-                RecordMiss(deviceId, entry);
-            }
-            else
-            {
-                RecordAnswer(deviceId, entry);
-            }
+            MarkAnswered(deviceId, entry);
+        }
+    }
+
+    public void RecordMiss(int deviceId)
+    {
+        lock (_lock)
+        {
+            var entry = GetOrCreateEntry(deviceId);
+            MarkMissed(deviceId, entry);
         }
     }
 
@@ -58,13 +60,14 @@ public class DeviceStatuses(TimeProvider time, IEventQueue events, ILogger<Devic
             entry.Channels = [.. known];
             for (var index = 0; index < entry.Channels.Length; index++)
             {
-                var old = ValueAt(before, index);
-                PublishIfChanged(deviceId, index + 1, old, entry.Channels[index]);
+                var wasOn = IsOnAt(before, index);
+                var isOn = entry.Channels[index];
+                PublishIfChanged(deviceId, index + 1, wasOn, isOn);
             }
         }
     }
 
-    public void StoreChannel(int deviceId, int channelCount, int channel, bool on)
+    public void StoreChannel(int deviceId, int channelCount, int channel, bool isOn)
     {
         lock (_lock)
         {
@@ -77,9 +80,9 @@ public class DeviceStatuses(TimeProvider time, IEventQueue events, ILogger<Devic
             var channels = entry.Channels;
             if (channel >= 1 && channel <= channels.Length)
             {
-                var old = channels[channel - 1];
-                channels[channel - 1] = on;
-                PublishIfChanged(deviceId, channel, old, on);
+                var wasOn = channels[channel - 1];
+                channels[channel - 1] = isOn;
+                PublishIfChanged(deviceId, channel, wasOn, isOn);
             }
         }
     }
@@ -96,9 +99,9 @@ public class DeviceStatuses(TimeProvider time, IEventQueue events, ILogger<Devic
             var channels = entry.Channels;
             if (channels is not null && channel >= 1 && channel <= channels.Length)
             {
-                var old = channels[channel - 1];
+                var wasOn = channels[channel - 1];
                 channels[channel - 1] = null;
-                PublishIfChanged(deviceId, channel, old, null);
+                PublishIfChanged(deviceId, channel, wasOn, null);
             }
         }
     }
@@ -112,7 +115,7 @@ public class DeviceStatuses(TimeProvider time, IEventQueue events, ILogger<Devic
     }
 
 
-    private void RecordAnswer(int deviceId, Entry entry)
+    private void MarkAnswered(int deviceId, Entry entry)
     {
         if (entry.State == State.Offline)
         {
@@ -129,7 +132,7 @@ public class DeviceStatuses(TimeProvider time, IEventQueue events, ILogger<Devic
         }
     }
 
-    private void RecordMiss(int deviceId, Entry entry)
+    private void MarkMissed(int deviceId, Entry entry)
     {
         entry.Misses++;
         if (entry.Misses >= MissesBeforeOffline && entry.State != State.Offline)
@@ -141,16 +144,16 @@ public class DeviceStatuses(TimeProvider time, IEventQueue events, ILogger<Devic
         }
     }
 
-    private void PublishIfChanged(int deviceId, int channel, bool? old, bool? current)
+    private void PublishIfChanged(int deviceId, int channel, bool? wasOn, bool? isOn)
     {
-        if (old != current)
+        if (wasOn != isOn)
         {
             var outlet = new Outlet(deviceId, channel);
-            events.Publish(new OutletChanged(outlet, current));
+            events.Publish(new OutletChanged(outlet, isOn));
         }
     }
 
-    private static bool? ValueAt(bool?[]? channels, int index)
+    private static bool? IsOnAt(bool?[]? channels, int index)
     {
         if (channels is null || index >= channels.Length)
         {

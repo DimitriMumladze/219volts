@@ -50,16 +50,16 @@ public class InMemoryTicketStore(IEventQueue events) : ITicketStore, ISessionReg
 
     public void EndSessionsFor(int userId)
     {
-        var ended = false;
+        var hasEndedAny = false;
         foreach (var session in _sessions)
         {
             if (UserIdOf(session.Value) == userId && _sessions.TryRemove(session.Key, out _))
             {
-                ended = true;
+                hasEndedAny = true;
             }
         }
 
-        if (ended)
+        if (hasEndedAny)
         {
             events.Publish(new LoginEnded(userId));
         }

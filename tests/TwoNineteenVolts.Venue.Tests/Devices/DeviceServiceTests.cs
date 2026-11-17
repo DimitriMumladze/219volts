@@ -183,7 +183,7 @@ public class DeviceServiceTests
         using var factory = new VenueAppFactory();
         var id = await TestDevices.AddAsync(factory, "Panel 1", Waveshare, "192.168.1.20", 502, 16);
         var statuses = Statuses(factory);
-        statuses.RecordOutcome(id, error: null);
+        statuses.RecordAnswer(id);
 
         await UseServiceAsync(factory, devices => devices.UpdateAsync(id, "Panel A", "192.168.1.20", 502));
         var afterRename = statuses.Get(id);
@@ -193,7 +193,7 @@ public class DeviceServiceTests
         var afterIpChange = statuses.Get(id);
         Assert.Equal(DeviceStatus.Unknown, afterIpChange);
 
-        statuses.RecordOutcome(id, error: null);
+        statuses.RecordAnswer(id);
         await UseServiceAsync(factory, devices => devices.UpdateAsync(id, "Panel A", "192.168.1.21", 503));
         var afterPortChange = statuses.Get(id);
         Assert.Equal(DeviceStatus.Unknown, afterPortChange);
@@ -236,19 +236,19 @@ public class DeviceServiceTests
         var billiard = await AddSpotAsync(factory, "aaaaaa", "Billiard 1", id, 1);
         var tennis = await AddSpotAsync(factory, "bbbbbb", "Tennis 1", id, 2);
         var other = await AddSpotAsync(factory, "cccccc", "PC 1", otherId, 1);
-        Statuses(factory).RecordOutcome(id, error: null);
+        Statuses(factory).RecordAnswer(id);
 
         var result = await UseServiceAsync(factory, devices => devices.DeleteAsync(id));
 
         Assert.False(result.IsFailure);
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<VenueDbContext>();
-        var deviceExists = await db.Devices.AnyAsync(d => d.Id == id);
+        var doesDeviceExist = await db.Devices.AnyAsync(d => d.Id == id);
         var spots = await db.Spots.OrderBy(s => s.Id).ToListAsync();
         var spotsOfDeletedDevice = spots.Where(s => s.Id != other).ToList();
         var spotOfOtherDevice = spots.Single(s => s.Id == other);
         var status = Statuses(factory).Get(id);
-        Assert.False(deviceExists);
+        Assert.False(doesDeviceExist);
         Assert.All(spotsOfDeletedDevice, s => Assert.False(s.IsMapped));
         Assert.All(spotsOfDeletedDevice, s => Assert.Null(s.Channel));
         Assert.True(spotOfOtherDevice.IsMapped);

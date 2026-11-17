@@ -41,7 +41,7 @@ public class VenueHubTests
         var (client, cookie) = await LoginAsync(factory, "Gio", Role.Staff);
         await using var hub = await HubClient.ConnectAsync(factory, cookie);
 
-        await client.PutAsJsonAsync($"/api/spots/{spot}/state", new { on = true });
+        await client.PutAsJsonAsync($"/api/spots/{spot}/state", new { isOn = true });
         await DeliverAsync(factory);
 
         var changed = await hub.NextSpotChangeAsync();

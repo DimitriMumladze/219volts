@@ -22,16 +22,16 @@ public class GroupService(
     public async Task<Result<Group>> CreateAsync(string name, decimal hourlyRate)
     {
         var cleanName = name.Trim();
-        var error = ValidateName(cleanName);
-        if (error is not null)
+        var nameValidation = ValidateName(cleanName);
+        if (nameValidation.IsFailure)
         {
-            return Fail(error);
+            return Fail(nameValidation.Error);
         }
 
-        error = ValidateRate(hourlyRate);
-        if (error is not null)
+        var rateValidation = ValidateRate(hourlyRate);
+        if (rateValidation.IsFailure)
         {
-            return Fail(error);
+            return Fail(rateValidation.Error);
         }
 
         await using var transaction = await db.Database.BeginTransactionAsync();
@@ -69,10 +69,10 @@ public class GroupService(
         }
 
         var cleanName = name.Trim();
-        var error = ValidateName(cleanName);
-        if (error is not null)
+        var nameValidation = ValidateName(cleanName);
+        if (nameValidation.IsFailure)
         {
-            return Fail(error);
+            return Fail(nameValidation.Error);
         }
 
         if (group.Name == cleanName)
@@ -112,10 +112,10 @@ public class GroupService(
             return Fail(GroupError.Archived);
         }
 
-        var error = ValidateRate(hourlyRate);
-        if (error is not null)
+        var rateValidation = ValidateRate(hourlyRate);
+        if (rateValidation.IsFailure)
         {
-            return Fail(error);
+            return Fail(rateValidation.Error);
         }
 
         var rateTetri = Money.ToTetri(hourlyRate);
@@ -168,34 +168,34 @@ public class GroupService(
     }
 
 
-    private static string? ValidateName(string name)
+    private static Result ValidateName(string name)
     {
         if (name.Length == 0)
         {
-            return GroupError.InvalidName;
+            return Result.Fail(GroupError.InvalidName);
         }
 
         if (name.Length > MaxNameLength)
         {
-            return GroupError.NameTooLong;
+            return Result.Fail(GroupError.NameTooLong);
         }
 
-        return null;
+        return Result.Ok();
     }
 
-    private static string? ValidateRate(decimal hourlyRate)
+    private static Result ValidateRate(decimal hourlyRate)
     {
         if (hourlyRate <= 0 || hourlyRate > MaxRate)
         {
-            return GroupError.InvalidRate;
+            return Result.Fail(GroupError.InvalidRate);
         }
 
         if (!Money.HasAtMostTwoDecimals(hourlyRate))
         {
-            return GroupError.InvalidRate;
+            return Result.Fail(GroupError.InvalidRate);
         }
 
-        return null;
+        return Result.Ok();
     }
 
     private Task<bool> IsNameTakenAsync(string name, int? ignoredGroupId)

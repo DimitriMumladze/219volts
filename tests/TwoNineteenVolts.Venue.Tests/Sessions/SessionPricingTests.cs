@@ -18,7 +18,7 @@ public class SessionPricingTests
     {
         var charged = SessionPricing.ChargedTetri(null, 1000);
 
-        Assert.Equal(1000, charged);
+        Assert.Equal(1000, charged.Value);
     }
 
     [Theory]
@@ -31,7 +31,7 @@ public class SessionPricingTests
 
         var charged = SessionPricing.ChargedTetri(amount, 1000);
 
-        Assert.Null(charged);
+        Assert.Equal(SessionError.InvalidAmount, charged.Error);
     }
 
     [Theory]
@@ -44,7 +44,7 @@ public class SessionPricingTests
 
         var charged = SessionPricing.ChargedTetri(amount, 1000);
 
-        Assert.Equal(expected, charged);
+        Assert.Equal(expected, charged.Value);
     }
 
     [Fact]

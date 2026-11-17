@@ -10,25 +10,27 @@ public static class SessionPricing
         return Money.PriceTetri(minutes, hourlyRateTetri);
     }
 
-    public static long? ChargedTetri(decimal? amount, long computedTetri)
+    public static Result<long> ChargedTetri(decimal? amount, long computedTetri)
     {
-        if (amount is not decimal typed)
+        if (amount is not decimal typedGel)
         {
-            return computedTetri;
+            return Result<long>.Ok(computedTetri);
         }
 
         var computedGel = Money.ToGel(computedTetri);
-        if (typed < 0 || typed > computedGel)
+        var isInRange = typedGel >= 0 && typedGel <= computedGel;
+        if (!isInRange)
         {
-            return null;
+            return Result<long>.Fail(SessionError.InvalidAmount);
         }
 
-        if (!Money.HasAtMostTwoDecimals(typed))
+        if (!Money.HasAtMostTwoDecimals(typedGel))
         {
-            return null;
+            return Result<long>.Fail(SessionError.InvalidAmount);
         }
 
-        return Money.ToTetri(typed);
+        var typedTetri = Money.ToTetri(typedGel);
+        return Result<long>.Ok(typedTetri);
     }
 
     public static string Details(int minutes, long computedTetri, long chargedTetri)

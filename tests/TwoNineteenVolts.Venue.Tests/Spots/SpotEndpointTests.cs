@@ -26,7 +26,7 @@ public class SpotEndpointTests
         string? DeviceName,
         int? Channel,
         bool? IsOn,
-        bool? DeviceOnline,
+        bool? IsDeviceOnline,
         DateTime? DeviceLastSeen,
         bool IsArchived,
         DateTime CreatedAt);
@@ -44,7 +44,7 @@ public class SpotEndpointTests
         var created = (await create.Content.ReadFromJsonAsync<SpotDto>())!;
         var update = await client.PutAsJsonAsync($"/api/spots/{created.Id}", new { name = "Billiard A", groupId = group, deviceId = panel, channel = 2 });
         var updated = (await update.Content.ReadFromJsonAsync<SpotDto>())!;
-        var switchOn = await client.PutAsJsonAsync($"/api/spots/{created.Id}/state", new { on = true });
+        var switchOn = await client.PutAsJsonAsync($"/api/spots/{created.Id}/state", new { isOn = true });
         var switched = (await switchOn.Content.ReadFromJsonAsync<SpotDto>())!;
         var newCode = await client.PostAsync($"/api/spots/{created.Id}/new-code", null);
         var recoded = (await newCode.Content.ReadFromJsonAsync<SpotDto>())!;
@@ -73,7 +73,7 @@ public class SpotEndpointTests
         MarkKnown(factory, panel);
         var billiard = await TestSpots.AddAsync(factory, "Billiard 1", panel, 2);
         await TestSpots.AddAsync(factory, "Tennis 1", null, null);
-        await TestSpots.AddAsync(factory, "Old table", null, null, archived: true);
+        await TestSpots.AddAsync(factory, "Old table", null, null, isArchived: true);
         var statuses = factory.Services.GetRequiredService<DeviceStatuses>();
         statuses.StoreChannel(panel, 16, 2, true);
         using var client = await StaffClientAsync(factory);
@@ -85,7 +85,7 @@ public class SpotEndpointTests
         Assert.Equal(billiard, spot.Id);
         Assert.Equal(("Billiard 1", panel, "Panel 1", 2), (spot.Name, spot.DeviceId, spot.DeviceName, spot.Channel));
         Assert.True(spot.IsOn);
-        Assert.True(spot.DeviceOnline);
+        Assert.True(spot.IsDeviceOnline);
         Assert.Equal(now, spot.DeviceLastSeen);
         Assert.False(spot.IsArchived);
     }
@@ -126,7 +126,7 @@ public class SpotEndpointTests
     {
         using var factory = new VenueAppFactory();
         var group = await TestGroups.DefaultAsync(factory);
-        var old = await TestGroups.AddAsync(factory, "Old", archived: true);
+        var old = await TestGroups.AddAsync(factory, "Old", isArchived: true);
         var id = await TestSpots.AddAsync(factory, "Billiard 1", null, null, groupId: group);
         using var client = await SupportClientAsync(factory);
 
@@ -160,7 +160,7 @@ public class SpotEndpointTests
         var panel = await AddPanelAsync(factory);
         await TestSpots.AddAsync(factory, "Billiard 1", panel, 2);
         await TestSpots.AddAsync(factory, "Tennis 1", null, null);
-        await TestSpots.AddAsync(factory, "Old table", null, null, archived: true);
+        await TestSpots.AddAsync(factory, "Old table", null, null, isArchived: true);
         using var client = await SupportClientAsync(factory);
 
         var spots = (await client.GetFromJsonAsync<List<SpotDto>>("/api/spots"))!;
@@ -185,7 +185,7 @@ public class SpotEndpointTests
         Assert.Null(spot.DeviceName);
         Assert.Null(spot.Channel);
         Assert.Null(spot.IsOn);
-        Assert.Null(spot.DeviceOnline);
+        Assert.Null(spot.IsDeviceOnline);
         Assert.Null(spot.DeviceLastSeen);
     }
 
@@ -198,7 +198,7 @@ public class SpotEndpointTests
         var id = await TestSpots.AddAsync(factory, "Billiard 1", panel, 1);
         using var client = await StaffClientAsync(factory);
 
-        var switchOn = await client.PutAsJsonAsync($"/api/spots/{id}/state", new { on = true });
+        var switchOn = await client.PutAsJsonAsync($"/api/spots/{id}/state", new { isOn = true });
         var create = await client.PostAsJsonAsync("/api/spots", new { name = "Billiard 2", groupId = group, deviceId = (int?)null, channel = (int?)null });
         var update = await client.PutAsJsonAsync($"/api/spots/{id}", new { name = "Billiard A", groupId = group, deviceId = panel, channel = 1 });
         var newCode = await client.PostAsync($"/api/spots/{id}/new-code", null);
@@ -255,7 +255,7 @@ public class SpotEndpointTests
         var statuses = factory.Services.GetRequiredService<DeviceStatuses>();
         for (var miss = 1; miss <= 3; miss++)
         {
-            statuses.RecordOutcome(panel, DeviceError.NoAnswer);
+            statuses.RecordMiss(panel);
         }
 
         using var client = await StaffClientAsync(factory);
@@ -264,7 +264,7 @@ public class SpotEndpointTests
 
         var spot = Assert.Single(spots);
         Assert.Null(spot.IsOn);
-        Assert.False(spot.DeviceOnline);
+        Assert.False(spot.IsDeviceOnline);
     }
 
     [Fact]
@@ -276,9 +276,9 @@ public class SpotEndpointTests
         using var client = await StaffClientAsync(factory);
 
         factory.Waveshare.Error = DeviceError.NoAnswer;
-        var noAnswer = await client.PutAsJsonAsync($"/api/spots/{id}/state", new { on = true });
+        var noAnswer = await client.PutAsJsonAsync($"/api/spots/{id}/state", new { isOn = true });
         factory.Waveshare.Error = DeviceError.ErrorAnswer;
-        var errorAnswer = await client.PutAsJsonAsync($"/api/spots/{id}/state", new { on = true });
+        var errorAnswer = await client.PutAsJsonAsync($"/api/spots/{id}/state", new { isOn = true });
 
         await AssertProblemAsync(noAnswer, HttpStatusCode.GatewayTimeout, DeviceError.NoAnswer);
         await AssertProblemAsync(errorAnswer, HttpStatusCode.BadGateway, DeviceError.ErrorAnswer);
@@ -291,10 +291,10 @@ public class SpotEndpointTests
         var panel = await AddPanelAsync(factory);
         var id = await TestSpots.AddAsync(factory, "Billiard 1", panel, 1);
         MarkKnown(factory, panel);
-        factory.Waveshare.IgnoreSet = true;
+        factory.Waveshare.ShouldIgnoreSet = true;
         using var client = await StaffClientAsync(factory);
 
-        var response = await client.PutAsJsonAsync($"/api/spots/{id}/state", new { on = true });
+        var response = await client.PutAsJsonAsync($"/api/spots/{id}/state", new { isOn = true });
 
         var problem = (await response.Content.ReadFromJsonAsync<ProblemDetails>())!;
         var isOn = (JsonElement)problem.Extensions["isOn"]!;
@@ -309,11 +309,11 @@ public class SpotEndpointTests
     {
         using var factory = new VenueAppFactory();
         var unmapped = await TestSpots.AddAsync(factory, "Tennis 1", null, null);
-        var archived = await TestSpots.AddAsync(factory, "Old table", null, null, archived: true);
+        var archived = await TestSpots.AddAsync(factory, "Old table", null, null, isArchived: true);
         using var client = await StaffClientAsync(factory);
 
-        var unmappedSwitch = await client.PutAsJsonAsync($"/api/spots/{unmapped}/state", new { on = true });
-        var archivedSwitch = await client.PutAsJsonAsync($"/api/spots/{archived}/state", new { on = true });
+        var unmappedSwitch = await client.PutAsJsonAsync($"/api/spots/{unmapped}/state", new { isOn = true });
+        var archivedSwitch = await client.PutAsJsonAsync($"/api/spots/{archived}/state", new { isOn = true });
 
         await AssertProblemAsync(unmappedSwitch, HttpStatusCode.NotFound, SpotError.NotFound);
         await AssertProblemAsync(archivedSwitch, HttpStatusCode.NotFound, SpotError.NotFound);
@@ -329,7 +329,7 @@ public class SpotEndpointTests
     {
         var statuses = factory.Services.GetRequiredService<DeviceStatuses>();
         var allOff = new bool[16];
-        statuses.RecordOutcome(deviceId, error: null);
+        statuses.RecordAnswer(deviceId);
         statuses.StoreChannels(deviceId, allOff);
     }
 

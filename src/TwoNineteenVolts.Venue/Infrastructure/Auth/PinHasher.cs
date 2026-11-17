@@ -10,6 +10,6 @@ public class PinHasher : IPinHasher
 
     public string Hash(string secret) => _hasher.HashPassword(null!, secret);
 
-    public bool Verify(string hash, string secret) =>
+    public bool IsMatch(string hash, string secret) =>
         _hasher.VerifyHashedPassword(null!, hash, secret) != PasswordVerificationResult.Failed;
 }

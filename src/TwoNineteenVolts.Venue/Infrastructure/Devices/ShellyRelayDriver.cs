@@ -31,19 +31,19 @@ public class ShellyRelayDriver(HttpClient http) : IRelayDriver
                 return Result<IReadOnlyList<bool>>.Fail(DeviceError.ErrorAnswer);
             }
 
-            var output = OutputOf(status);
-            if (output is not bool on)
+            var output = IsOutputOn(status);
+            if (output is not bool isOn)
             {
                 return Result<IReadOnlyList<bool>>.Fail(DeviceError.ErrorAnswer);
             }
 
-            states.Add(on);
+            states.Add(isOn);
         }
 
         return Result<IReadOnlyList<bool>>.Ok(states);
     }
 
-    public async Task<Result<bool>> ReadAsync(Device device, int channel, CancellationToken cancellationToken)
+    public async Task<Result<bool>> ReadIsOnAsync(Device device, int channel, CancellationToken cancellationToken)
     {
         var id = channel - 1;
         var reply = await GetAsync(device, $"/rpc/Switch.GetStatus?id={id}", cancellationToken);
@@ -52,26 +52,26 @@ public class ShellyRelayDriver(HttpClient http) : IRelayDriver
             return Result<bool>.Fail(reply.Error);
         }
 
-        var output = OutputOf(reply.Value);
-        if (output is not bool on)
+        var output = IsOutputOn(reply.Value);
+        if (output is not bool isOn)
         {
             return Result<bool>.Fail(DeviceError.ErrorAnswer);
         }
 
-        return Result<bool>.Ok(on);
+        return Result<bool>.Ok(isOn);
     }
 
-    public async Task<Result<bool>> SetAsync(Device device, int channel, bool on, CancellationToken cancellationToken)
+    public async Task<Result> SetAsync(Device device, int channel, bool shouldBeOn, CancellationToken cancellationToken)
     {
         var id = channel - 1;
-        var state = on ? "true" : "false";
+        var state = shouldBeOn ? "true" : "false";
         var reply = await GetAsync(device, $"/rpc/Switch.Set?id={id}&on={state}", cancellationToken);
         if (reply.IsFailure)
         {
-            return Result<bool>.Fail(reply.Error);
+            return Result.Fail(reply.Error);
         }
 
-        return Result<bool>.Ok(on);
+        return Result.Ok();
     }
 
 
@@ -110,7 +110,7 @@ public class ShellyRelayDriver(HttpClient http) : IRelayDriver
         }
     }
 
-    private static bool? OutputOf(JsonElement status)
+    private static bool? IsOutputOn(JsonElement status)
     {
         if (status.ValueKind != JsonValueKind.Object)
         {

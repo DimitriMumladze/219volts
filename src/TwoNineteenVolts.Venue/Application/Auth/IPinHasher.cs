@@ -4,5 +4,5 @@ public interface IPinHasher
 {
     string Hash(string secret);
 
-    bool Verify(string hash, string secret);
+    bool IsMatch(string hash, string secret);
 }

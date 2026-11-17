@@ -26,12 +26,12 @@ public class SetupCommandTests
 
         var owner = users[0];
         Assert.Equal(("Nino", Role.Manager, true), (owner.DisplayName, owner.Role, owner.IsActive));
-        var ownerPinWorks = hasher.Verify(owner.SecretHash, "0123");
-        Assert.True(ownerPinWorks);
+        var isOwnerPinMatch = hasher.IsMatch(owner.SecretHash, "0123");
+        Assert.True(isOwnerPinMatch);
 
         var support = users[1];
         Assert.Equal(("219volts Support", Role.Support), (support.DisplayName, support.Role));
-        var printed = Assert.Single(console.Output, line => line.Length == 24 && hasher.Verify(support.SecretHash, line));
+        var printed = Assert.Single(console.Output, line => line.Length == 24 && hasher.IsMatch(support.SecretHash, line));
         Assert.Single(console.Output, line => line.Contains(printed));
 
         var entries = await db.AuditEntries.OrderBy(e => e.Id).ToListAsync();

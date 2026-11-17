@@ -38,7 +38,7 @@ public class DeviceEndpointTests
 
         await client.PostAsJsonAsync("/api/devices", new { name = "Bar Shelly", kind = "ShellyGen2", ipAddress = "192.168.10.30", port = 8080, channelCount = 4 });
         var statuses = factory.Services.GetRequiredService<DeviceStatuses>();
-        statuses.RecordOutcome(panel.Id, error: null);
+        statuses.RecordAnswer(panel.Id);
         var listed = (await client.GetFromJsonAsync<List<DeviceDto>>("/api/devices"))!;
         var names = listed.Select(d => d.Name);
         var listedPanel = listed.Single(d => d.Id == panel.Id);

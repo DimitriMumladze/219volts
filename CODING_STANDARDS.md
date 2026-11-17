@@ -31,6 +31,7 @@ These rules apply to all code in this repository. If a request conflicts with a 
 | Interface | `I` + PascalCase | `ILampService` |
 | Parameter, local variable | camelCase | `deviceIp`, `lamp` |
 | Private field | `_camelCase` | `_deviceIp` |
+| Boolean (property, parameter, local, field, method) | Starts with `Is`, `Has`, `Should`, `Was`, `Can` or `Are`; a bool method that may fail starts with `Try` | `IsOn`, `hasEntered`, `shouldBeOn`, `HasWarning()`, `TryConnect()` |
 
 ```csharp
 public class Lamp
@@ -154,7 +155,7 @@ In a class, public members come first and private methods after them. One extra 
     }
 
 
-    private async Task<string?> ValidateAsync(string name, string ipAddress, int port, int? ignoredDeviceId)
+    private async Task<Result> ValidateAsync(string name, string ipAddress, int port, int? ignoredDeviceId)
     {
         ...
     }
@@ -233,7 +234,7 @@ TwoNineteenVolts.Venue/
 - Application code reaches the database only through `Application/Data/IVenueDbContext`, which `VenueDbContext` implements. It never uses `VenueDbContext` itself.
 - Application code never touches `HttpContext`. What it needs from the request comes through an interface implemented in Infrastructure (example: `ICurrentActor`).
 
-Code shared by several features goes in `Common/`, and only once a second feature actually uses it (exception: `Result<T>`, see 6.2). The same holds inside a layer: `IConsole` lives in `Commands/Setup/` until a second feature has a command.
+Code shared by several features goes in `Common/`, and only once a second feature actually uses it (exception: `Result` and `Result<T>`, see 6.2). The same holds inside a layer: `IConsole` lives in `Commands/Setup/` until a second feature has a command.
 
 ### 3.5 What goes in each layer
 | Layer | Holds | Examples |
@@ -456,8 +457,8 @@ Shelly__CloudAuthKey=<key>
 
 ## 6. Errors and Logging
 
-### 6.1 Expected failures return `Result<T>`
-A failure that can happen in normal operation (a device doesn't answer, an item isn't found, input is invalid) is returned as a `Result<T>`, not thrown. The endpoint turns a failed result into a ProblemDetails response (see 4.2).
+### 6.1 Expected failures return `Result` or `Result<T>`
+A failure that can happen in normal operation (a device doesn't answer, an item isn't found, input is invalid) is returned as a `Result` or `Result<T>`, not thrown. The endpoint turns a failed result into a ProblemDetails response (see 4.2).
 
 Exceptions are only for bugs and truly unexpected situations. Those reach the global ProblemDetails handler.
 
@@ -486,11 +487,20 @@ if (result.IsFailure)
 return TypedResults.Ok(result.Value);
 ```
 
-### 6.2 `Result<T>` is our own type
-`Result<T>` lives in `Common/Result.cs`. It is written by us, not taken from a library. It is the one type that goes into `Common/` before a second feature uses it (exception to 3.4).
+### 6.2 `Result` and `Result<T>` are our own types
+`Result` (`Common/Result.cs`) is for work that only succeeds or fails; `Result<T>` (`Common/ResultOfT.cs`) also carries a value. They are written by us, not taken from a library. They are the types that go into `Common/` before a second feature uses them (exception to 3.4).
 
 ```csharp
 // Common/Result.cs
+public record Result(string? Error)
+{
+    public bool IsFailure => Error is not null;
+
+    public static Result Ok() => new((string?)null);
+    public static Result Fail(string error) => new(error);
+}
+
+// Common/ResultOfT.cs
 public record Result<T>(T? Value, string? Error)
 {
     public bool IsFailure => Error is not null;
@@ -500,14 +510,28 @@ public record Result<T>(T? Value, string? Error)
 }
 ```
 
-### 6.3 Built-in `ILogger`, console only
+### 6.3 A return type says what it means
+A reader must know what a returned value means without opening the method.
+- Never return an error key as a `string` or `string?` ("null means fine"). Return `Result`.
+- Never return `Result<bool>` (or any `Result<T>`) whose value carries nothing or only repeats an argument. Return `Result`.
+- Never return `T?` where null secretly means "refused" or "invalid". Return `Result<T>`, or use the `bool TryX(..., out T value)` pattern.
+
+```csharp
+// Do
+private async Task<Result> SwitchOffWithOneRetryAsync(IOutletControl control)
+
+// Don't
+private static async Task<string?> SwitchOffAsync(IOutletControl control)
+```
+
+### 6.4 Built-in `ILogger`, console only
 Log through the built-in `ILogger<T>`, injected where it is needed. Logs go to the console. Don't add logging packages (Serilog, OpenTelemetry) until there is a concrete need, such as keeping or searching log history.
 
 ```csharp
 public class ShellyClient(HttpClient http, ILogger<ShellyClient> logger)
 ```
 
-### 6.4 Message templates
+### 6.5 Message templates
 Write log messages as templates with named placeholders, so values are stored as separate fields. Never use string interpolation (`$"..."`) in log calls.
 
 ```csharp
@@ -518,7 +542,7 @@ logger.LogWarning("Lamp {LampId} unreachable at {Ip}", lampId, ip);
 logger.LogWarning($"Lamp {lampId} unreachable at {ip}");
 ```
 
-### 6.5 What to log
+### 6.6 What to log
 Log failures and state changes only. Don't log every request.
 
 | Level | When | Example |

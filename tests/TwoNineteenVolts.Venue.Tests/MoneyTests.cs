@@ -45,13 +45,13 @@ public class MoneyTests
     [InlineData("1.5", true)]
     [InlineData("1.005", false)]
     [InlineData("0.001", false)]
-    public void At_most_two_decimals(string gelText, bool expected)
+    public void At_most_two_decimals(string gelText, bool isExpectedAllowed)
     {
         var gel = decimal.Parse(gelText, System.Globalization.CultureInfo.InvariantCulture);
 
-        var result = Money.HasAtMostTwoDecimals(gel);
+        var hasAtMostTwoDecimals = Money.HasAtMostTwoDecimals(gel);
 
-        Assert.Equal(expected, result);
+        Assert.Equal(isExpectedAllowed, hasAtMostTwoDecimals);
     }
 
     [Fact]
@@ -59,9 +59,9 @@ public class MoneyTests
     {
         var huge = decimal.MaxValue;
 
-        var result = Money.HasAtMostTwoDecimals(huge);
+        var hasAtMostTwoDecimals = Money.HasAtMostTwoDecimals(huge);
 
-        Assert.True(result);
+        Assert.True(hasAtMostTwoDecimals);
     }
 
     [Theory]

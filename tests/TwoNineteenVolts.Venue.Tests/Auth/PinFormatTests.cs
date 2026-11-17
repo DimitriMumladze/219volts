@@ -11,9 +11,9 @@ public class PinFormatTests
     [InlineData("12a4", false)]
     [InlineData(" 123", false)]
     [InlineData("١٢٣٤", false)]
-    public void Pin_format(string pin, bool valid)
+    public void Pin_format(string pin, bool isExpectedValid)
     {
         var isValid = PinFormat.IsValid(pin);
-        Assert.Equal(valid, isValid);
+        Assert.Equal(isExpectedValid, isValid);
     }
 }

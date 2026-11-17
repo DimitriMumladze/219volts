@@ -10,9 +10,9 @@ public record SpotView(
     string? DeviceName,
     int? Channel,
     bool? IsOn,
-    bool? DeviceOnline,
+    bool? IsDeviceOnline,
     DateTime? DeviceLastSeen,
     bool IsArchived,
     DateTime CreatedAt,
     SpotSessionView? Session,
-    bool SwitchOffFailed);
+    bool HasSwitchOffFailed);

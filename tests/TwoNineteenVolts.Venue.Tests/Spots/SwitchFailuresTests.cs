@@ -18,10 +18,11 @@ public class SwitchFailuresTests
         using var factory = new VenueAppFactory();
         var spot = await TestSpots.AddAsync(factory, "Billiard 1", null, null);
 
-        var reported = await RecordAsync(factory, spot, DeviceError.NotFound);
+        await RecordAsync(factory, spot, DeviceError.NotFound);
 
+        var spotError = SwitchFailures.ToSpotError(DeviceError.NotFound);
         var auditCount = await AuditCountAsync(factory);
-        Assert.Equal(SpotError.Unmapped, reported);
+        Assert.Equal(SpotError.Unmapped, spotError);
         Assert.Equal(0, auditCount);
     }
 
@@ -31,19 +32,20 @@ public class SwitchFailuresTests
         using var factory = new VenueAppFactory();
         var spot = await TestSpots.AddAsync(factory, "Billiard 1", null, null);
 
-        var reported = await RecordAsync(factory, spot, DeviceError.NoAnswer);
+        await RecordAsync(factory, spot, DeviceError.NoAnswer);
 
+        var spotError = SwitchFailures.ToSpotError(DeviceError.NoAnswer);
         var auditCount = await AuditCountAsync(factory);
-        Assert.Equal(DeviceError.NoAnswer, reported);
+        Assert.Equal(DeviceError.NoAnswer, spotError);
         Assert.Equal(1, auditCount);
     }
 
 
-    private static async Task<string> RecordAsync(VenueAppFactory factory, int spot, string error)
+    private static async Task RecordAsync(VenueAppFactory factory, int spot, string deviceError)
     {
         using var scope = factory.Services.CreateScope();
         var failures = scope.ServiceProvider.GetRequiredService<SwitchFailures>();
-        return await failures.RecordAsync(spot, Staff, error);
+        await failures.RecordAsync(spot, Staff, deviceError);
     }
 
     private static async Task<int> AuditCountAsync(VenueAppFactory factory)

@@ -46,7 +46,7 @@ public class SessionTickService(
         using (var scope = scopes.CreateScope())
         {
             var sessions = scope.ServiceProvider.GetRequiredService<SessionService>();
-            deviceIds = await sessions.DueDeviceIdsAsync();
+            deviceIds = await sessions.FindDeviceIdsWithDueSessionsAsync();
         }
 
         var perDevice = deviceIds.Select(id => EndDueOnDeviceAsync(id, actor, cancellationToken)).ToList();

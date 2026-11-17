@@ -64,7 +64,7 @@ public class GroupEndpointTests
     {
         using var factory = new VenueAppFactory();
         await TestGroups.AddAsync(factory, "Billiards");
-        await TestGroups.AddAsync(factory, "Old", archived: true);
+        await TestGroups.AddAsync(factory, "Old", isArchived: true);
         using var client = await UserClientAsync(factory, "Nino", Role.Manager);
 
         var groups = (await client.GetFromJsonAsync<List<GroupDto>>("/api/groups"))!;
@@ -124,7 +124,7 @@ public class GroupEndpointTests
     {
         using var factory = new VenueAppFactory();
         await TestGroups.AddAsync(factory, "Billiards");
-        await TestGroups.AddAsync(factory, "Old", archived: true);
+        await TestGroups.AddAsync(factory, "Old", isArchived: true);
         using var client = await UserClientAsync(factory, "Gio", Role.Staff);
 
         var groups = (await client.GetFromJsonAsync<List<GroupDto>>("/api/groups"))!;
@@ -138,7 +138,7 @@ public class GroupEndpointTests
     {
         using var factory = new VenueAppFactory();
         await TestGroups.AddAsync(factory, "Billiards");
-        await TestGroups.AddAsync(factory, "Old", archived: true);
+        await TestGroups.AddAsync(factory, "Old", isArchived: true);
         using var client = await SupportClientAsync(factory);
 
         var groups = (await client.GetFromJsonAsync<List<GroupDto>>("/api/groups"))!;

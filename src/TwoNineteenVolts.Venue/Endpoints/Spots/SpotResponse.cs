@@ -12,12 +12,12 @@ public record SpotResponse(
     string? DeviceName,
     int? Channel,
     bool? IsOn,
-    bool? DeviceOnline,
+    bool? IsDeviceOnline,
     DateTime? DeviceLastSeen,
     bool IsArchived,
     DateTime CreatedAt,
     SpotSessionResponse? Session,
-    bool SwitchOffFailed)
+    bool HasSwitchOffFailed)
 {
     public static SpotResponse From(SpotView view)
     {
@@ -37,11 +37,11 @@ public record SpotResponse(
             view.DeviceName,
             view.Channel,
             view.IsOn,
-            view.DeviceOnline,
+            view.IsDeviceOnline,
             view.DeviceLastSeen,
             view.IsArchived,
             view.CreatedAt,
             session,
-            view.SwitchOffFailed);
+            view.HasSwitchOffFailed);
     }
 }

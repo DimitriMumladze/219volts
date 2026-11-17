@@ -20,8 +20,8 @@ public class DeviceStatusesTests
     {
         var statuses = NewStatuses();
 
-        statuses.RecordOutcome(DeviceId, error: null);
-        statuses.RecordOutcome(DeviceId, error: null);
+        statuses.RecordAnswer(DeviceId);
+        statuses.RecordAnswer(DeviceId);
 
         Assert.Equal([new DeviceWentOnline(DeviceId)], _events.Events);
     }
@@ -30,11 +30,11 @@ public class DeviceStatusesTests
     public void Third_miss_publishes_went_offline_once()
     {
         var statuses = NewStatuses();
-        statuses.RecordOutcome(DeviceId, error: null);
+        statuses.RecordAnswer(DeviceId);
         _events.Clear();
 
         GoOffline(statuses);
-        statuses.RecordOutcome(DeviceId, DeviceError.NoAnswer);
+        statuses.RecordMiss(DeviceId);
 
         Assert.Equal([new DeviceWentOffline(DeviceId)], _events.Events);
     }
@@ -43,11 +43,11 @@ public class DeviceStatusesTests
     public void Same_channels_again_publish_nothing()
     {
         var statuses = NewStatuses();
-        statuses.RecordOutcome(DeviceId, error: null);
+        statuses.RecordAnswer(DeviceId);
         statuses.StoreChannels(DeviceId, [true, false]);
         _events.Clear();
 
-        statuses.RecordOutcome(DeviceId, error: null);
+        statuses.RecordAnswer(DeviceId);
         statuses.StoreChannels(DeviceId, [true, false]);
 
         Assert.Empty(_events.Events);
@@ -57,7 +57,7 @@ public class DeviceStatusesTests
     public void Changed_channel_publishes_channel_state_changed()
     {
         var statuses = NewStatuses();
-        statuses.RecordOutcome(DeviceId, error: null);
+        statuses.RecordAnswer(DeviceId);
         _events.Clear();
 
         statuses.StoreChannels(DeviceId, [true, false]);
@@ -95,7 +95,7 @@ public class DeviceStatusesTests
     {
         var statuses = NewStatuses();
 
-        statuses.RecordOutcome(DeviceId, error: null);
+        statuses.RecordAnswer(DeviceId);
 
         var status = statuses.Get(DeviceId);
         var now = _time.GetUtcNow().UtcDateTime;
@@ -108,7 +108,7 @@ public class DeviceStatusesTests
     {
         var statuses = NewStatuses();
 
-        statuses.RecordOutcome(DeviceId, DeviceError.ErrorAnswer);
+        statuses.RecordAnswer(DeviceId);
 
         var status = statuses.Get(DeviceId);
         var now = _time.GetUtcNow().UtcDateTime;
@@ -120,17 +120,17 @@ public class DeviceStatusesTests
     public void Device_goes_offline_only_after_three_misses_in_a_row()
     {
         var statuses = NewStatuses();
-        statuses.RecordOutcome(DeviceId, error: null);
+        statuses.RecordAnswer(DeviceId);
         var seen = _time.GetUtcNow().UtcDateTime;
         var tenSeconds = TimeSpan.FromSeconds(10);
         _time.Advance(tenSeconds);
 
-        statuses.RecordOutcome(DeviceId, DeviceError.NoAnswer);
-        statuses.RecordOutcome(DeviceId, DeviceError.NoAnswer);
+        statuses.RecordMiss(DeviceId);
+        statuses.RecordMiss(DeviceId);
         var afterTwoMisses = statuses.Get(DeviceId);
         Assert.True(afterTwoMisses.IsOnline);
 
-        statuses.RecordOutcome(DeviceId, DeviceError.NoAnswer);
+        statuses.RecordMiss(DeviceId);
         var status = statuses.Get(DeviceId);
         Assert.False(status.IsOnline);
         Assert.Equal(seen, status.LastSeen);
@@ -140,13 +140,13 @@ public class DeviceStatusesTests
     public void An_answer_resets_the_miss_count()
     {
         var statuses = NewStatuses();
-        statuses.RecordOutcome(DeviceId, error: null);
-        statuses.RecordOutcome(DeviceId, DeviceError.NoAnswer);
-        statuses.RecordOutcome(DeviceId, DeviceError.NoAnswer);
+        statuses.RecordAnswer(DeviceId);
+        statuses.RecordMiss(DeviceId);
+        statuses.RecordMiss(DeviceId);
 
-        statuses.RecordOutcome(DeviceId, error: null);
-        statuses.RecordOutcome(DeviceId, DeviceError.NoAnswer);
-        statuses.RecordOutcome(DeviceId, DeviceError.NoAnswer);
+        statuses.RecordAnswer(DeviceId);
+        statuses.RecordMiss(DeviceId);
+        statuses.RecordMiss(DeviceId);
 
         var status = statuses.Get(DeviceId);
         Assert.True(status.IsOnline);
@@ -156,7 +156,7 @@ public class DeviceStatusesTests
     public void Offline_device_reports_unknown_channel_states()
     {
         var statuses = NewStatuses();
-        statuses.RecordOutcome(DeviceId, error: null);
+        statuses.RecordAnswer(DeviceId);
         statuses.StoreChannels(DeviceId, [true, false]);
 
         GoOffline(statuses);
@@ -170,9 +170,9 @@ public class DeviceStatusesTests
     public void Single_channel_is_known_before_the_first_full_read()
     {
         var statuses = NewStatuses();
-        statuses.RecordOutcome(DeviceId, error: null);
+        statuses.RecordAnswer(DeviceId);
 
-        statuses.StoreChannel(DeviceId, channelCount: 4, channel: 2, on: true);
+        statuses.StoreChannel(DeviceId, channelCount: 4, channel: 2, isOn: true);
 
         var status = statuses.Get(DeviceId);
         var channelOne = status.IsOn(1);
@@ -186,11 +186,11 @@ public class DeviceStatusesTests
     public void Going_offline_forgets_channel_states()
     {
         var statuses = NewStatuses();
-        statuses.RecordOutcome(DeviceId, error: null);
+        statuses.RecordAnswer(DeviceId);
         statuses.StoreChannels(DeviceId, [true, false]);
 
         GoOffline(statuses);
-        statuses.RecordOutcome(DeviceId, error: null);
+        statuses.RecordAnswer(DeviceId);
 
         var status = statuses.Get(DeviceId);
         var channelOne = status.IsOn(1);
@@ -202,7 +202,7 @@ public class DeviceStatusesTests
     public void Forgotten_channel_is_unknown_and_others_stay_known()
     {
         var statuses = NewStatuses();
-        statuses.RecordOutcome(DeviceId, error: null);
+        statuses.RecordAnswer(DeviceId);
         statuses.StoreChannels(DeviceId, [true, true, false]);
 
         statuses.ForgetChannel(DeviceId, 2);
@@ -220,10 +220,10 @@ public class DeviceStatusesTests
     public void Stored_channel_state_is_returned_while_online()
     {
         var statuses = NewStatuses();
-        statuses.RecordOutcome(DeviceId, error: null);
+        statuses.RecordAnswer(DeviceId);
 
         statuses.StoreChannels(DeviceId, [true, false, false]);
-        statuses.StoreChannel(DeviceId, channelCount: 3, channel: 3, on: true);
+        statuses.StoreChannel(DeviceId, channelCount: 3, channel: 3, isOn: true);
 
         var status = statuses.Get(DeviceId);
         var channelOne = status.IsOn(1);
@@ -238,7 +238,7 @@ public class DeviceStatusesTests
     public void Remove_forgets_the_device()
     {
         var statuses = NewStatuses();
-        statuses.RecordOutcome(DeviceId, error: null);
+        statuses.RecordAnswer(DeviceId);
         statuses.StoreChannels(DeviceId, [true]);
 
         statuses.Remove(DeviceId);
@@ -254,17 +254,17 @@ public class DeviceStatusesTests
     {
         var statuses = NewStatuses();
 
-        statuses.RecordOutcome(DeviceId, error: null);
+        statuses.RecordAnswer(DeviceId);
         var afterFirstAnswer = _logger.Collector.GetSnapshot();
         Assert.Empty(afterFirstAnswer);
 
         for (var miss = 1; miss <= 5; miss++)
         {
-            statuses.RecordOutcome(DeviceId, DeviceError.NoAnswer);
+            statuses.RecordMiss(DeviceId);
         }
 
-        statuses.RecordOutcome(DeviceId, error: null);
-        statuses.RecordOutcome(DeviceId, error: null);
+        statuses.RecordAnswer(DeviceId);
+        statuses.RecordAnswer(DeviceId);
 
         var levels = _logger.Collector.GetSnapshot().Select(r => r.Level);
         Assert.Equal([LogLevel.Warning, LogLevel.Information], levels);
@@ -277,7 +277,7 @@ public class DeviceStatusesTests
 
         for (var miss = 1; miss <= 5; miss++)
         {
-            statuses.RecordOutcome(DeviceId, DeviceError.NoAnswer);
+            statuses.RecordMiss(DeviceId);
         }
 
         var levels = _logger.Collector.GetSnapshot().Select(r => r.Level);
@@ -291,7 +291,7 @@ public class DeviceStatusesTests
     {
         for (var miss = 1; miss <= 3; miss++)
         {
-            statuses.RecordOutcome(DeviceId, DeviceError.NoAnswer);
+            statuses.RecordMiss(DeviceId);
         }
     }
 }

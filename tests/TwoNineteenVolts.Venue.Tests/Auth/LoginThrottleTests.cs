@@ -16,8 +16,8 @@ public class LoginThrottleTests
 
         for (var attempt = 1; attempt <= 4; attempt++)
         {
-            var wait = throttle.TryStartAttempt(UserId);
-            Assert.Null(wait);
+            var isAllowed = throttle.TryStartAttempt(UserId, out _);
+            Assert.True(isAllowed);
         }
     }
 
@@ -30,12 +30,13 @@ public class LoginThrottleTests
         foreach (var seconds in new[] { 1, 2, 4, 8, 16, 30, 30 })
         {
             var wait = TimeSpan.FromSeconds(seconds);
-            var tooEarly = throttle.TryStartAttempt(UserId);
-            Assert.Equal(wait, tooEarly);
+            var isAllowedTooEarly = throttle.TryStartAttempt(UserId, out var retryAfter);
+            Assert.False(isAllowedTooEarly);
+            Assert.Equal(wait, retryAfter);
 
             _time.Advance(wait);
-            var onTime = throttle.TryStartAttempt(UserId);
-            Assert.Null(onTime);
+            var isAllowedOnTime = throttle.TryStartAttempt(UserId, out _);
+            Assert.True(isAllowedOnTime);
         }
     }
 
@@ -49,12 +50,13 @@ public class LoginThrottleTests
         var sixHundredMilliseconds = TimeSpan.FromMilliseconds(600);
 
         _time.Advance(fourHundredMilliseconds);
-        var remaining = throttle.TryStartAttempt(UserId);
+        var isAllowedEarly = throttle.TryStartAttempt(UserId, out var remaining);
+        Assert.False(isAllowedEarly);
         Assert.Equal(sixHundredMilliseconds, remaining);
 
         _time.Advance(sixHundredMilliseconds);
-        var afterWaiting = throttle.TryStartAttempt(UserId);
-        Assert.Null(afterWaiting);
+        var isAllowedAfterWaiting = throttle.TryStartAttempt(UserId, out _);
+        Assert.True(isAllowedAfterWaiting);
     }
 
     [Fact]
@@ -66,12 +68,12 @@ public class LoginThrottleTests
         var halfSecond = TimeSpan.FromMilliseconds(500);
 
         _time.Advance(halfSecond);
-        var early = throttle.TryStartAttempt(UserId);
-        Assert.NotNull(early);
+        var isAllowedEarly = throttle.TryStartAttempt(UserId, out _);
+        Assert.False(isAllowedEarly);
 
         _time.Advance(halfSecond);
-        var onTime = throttle.TryStartAttempt(UserId);
-        Assert.Null(onTime);
+        var isAllowedOnTime = throttle.TryStartAttempt(UserId, out _);
+        Assert.True(isAllowedOnTime);
     }
 
     [Fact]
@@ -84,8 +86,8 @@ public class LoginThrottleTests
 
         for (var attempt = 1; attempt <= 4; attempt++)
         {
-            var wait = throttle.TryStartAttempt(UserId);
-            Assert.Null(wait);
+            var isAllowed = throttle.TryStartAttempt(UserId, out _);
+            Assert.True(isAllowed);
         }
     }
 
@@ -95,29 +97,30 @@ public class LoginThrottleTests
         var throttle = new LoginThrottle(_time);
         StartAttempts(throttle, 4);
 
-        var slowedUser = throttle.TryStartAttempt(UserId);
-        var otherUser = throttle.TryStartAttempt(UserId + 1);
-        Assert.NotNull(slowedUser);
-        Assert.Null(otherUser);
+        var isSlowedUserAllowed = throttle.TryStartAttempt(UserId, out _);
+        var isOtherUserAllowed = throttle.TryStartAttempt(UserId + 1, out _);
+        Assert.False(isSlowedUserAllowed);
+        Assert.True(isOtherUserAllowed);
     }
 
     [Fact]
     public void Parallel_burst_gets_no_more_attempts_than_one_by_one()
     {
         var throttle = new LoginThrottle(_time);
-        var allowed = 0;
+        var allowedCount = 0;
 
-        Parallel.For(0, 50, _ =>
+        Parallel.For(0, 50, attempt =>
         {
-            if (throttle.TryStartAttempt(UserId) is null)
+            if (throttle.TryStartAttempt(UserId, out _))
             {
-                Interlocked.Increment(ref allowed);
+                Interlocked.Increment(ref allowedCount);
             }
         });
 
         var oneSecond = TimeSpan.FromSeconds(1);
-        var nextWait = throttle.TryStartAttempt(UserId);
-        Assert.Equal(4, allowed);
+        var isNextAllowed = throttle.TryStartAttempt(UserId, out var nextWait);
+        Assert.Equal(4, allowedCount);
+        Assert.False(isNextAllowed);
         Assert.Equal(oneSecond, nextWait);
     }
 
@@ -126,8 +129,8 @@ public class LoginThrottleTests
     {
         for (var attempt = 1; attempt <= count; attempt++)
         {
-            var wait = throttle.TryStartAttempt(UserId);
-            Assert.Null(wait);
+            var isAllowed = throttle.TryStartAttempt(UserId, out _);
+            Assert.True(isAllowed);
         }
     }
 }

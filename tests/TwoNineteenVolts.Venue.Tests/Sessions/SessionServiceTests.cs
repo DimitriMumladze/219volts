@@ -108,7 +108,7 @@ public class SessionServiceTests
     {
         using var factory = new VenueAppFactory();
         var (_, spot) = await AddSpotAsync(factory);
-        factory.Waveshare.IgnoreSet = true;
+        factory.Waveshare.ShouldIgnoreSet = true;
 
         var result = await UseServiceAsync(factory, sessions => sessions.StartAsync(spot, 60, null));
 
@@ -327,7 +327,7 @@ public class SessionServiceTests
 
         await UseServiceAsync(factory, sessions => sessions.StartAsync(spot, 60, null));
 
-        Assert.False(warnings.Has(spot));
+        Assert.False(warnings.HasWarning(spot));
     }
 
     [Fact]

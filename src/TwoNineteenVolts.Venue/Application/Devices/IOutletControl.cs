@@ -6,7 +6,7 @@ public interface IOutletControl
 {
     OutletState State { get; }
 
-    Task<Result<bool>> SwitchAsync(bool on);
+    Task<Result> SwitchAsync(bool shouldBeOn);
 
     void ForgetState();
 }

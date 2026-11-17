@@ -13,7 +13,7 @@ public interface IRelayDriver
 
     Task<Result<IReadOnlyList<bool>>> ReadAllAsync(Device device, CancellationToken cancellationToken);
 
-    Task<Result<bool>> ReadAsync(Device device, int channel, CancellationToken cancellationToken);
+    Task<Result<bool>> ReadIsOnAsync(Device device, int channel, CancellationToken cancellationToken);
 
-    Task<Result<bool>> SetAsync(Device device, int channel, bool on, CancellationToken cancellationToken);
+    Task<Result> SetAsync(Device device, int channel, bool shouldBeOn, CancellationToken cancellationToken);
 }

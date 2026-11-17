@@ -86,14 +86,14 @@ public class DeviceCheckServiceTests
 
         var check = CheckAsync(factory);
         var fiveSeconds = TimeSpan.FromSeconds(5);
-        var bothStarted = SpinWait.SpinUntil(
+        var areBothStarted = SpinWait.SpinUntil(
             () => factory.Shelly.Calls.Contains($"read-all {shelly.Id}") && factory.Waveshare.Calls.Contains($"read-all {panel.Id}"),
             fiveSeconds);
         factory.Shelly.Gate.SetResult();
         factory.Waveshare.Gate.SetResult();
         await check;
 
-        Assert.True(bothStarted);
+        Assert.True(areBothStarted);
     }
 
 

@@ -9,14 +9,14 @@ public static class TestGroups
 {
     public const string DefaultName = "Test group";
 
-    public static async Task<int> AddAsync(VenueAppFactory factory, string name, long hourlyRateTetri = 1000, bool archived = false)
+    public static async Task<int> AddAsync(VenueAppFactory factory, string name, long hourlyRateTetri = 1000, bool isArchived = false)
     {
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<VenueDbContext>();
 
         var now = factory.Time.GetUtcNow().UtcDateTime;
         var group = new Group(name, hourlyRateTetri, now);
-        if (archived)
+        if (isArchived)
         {
             group.Archive();
         }

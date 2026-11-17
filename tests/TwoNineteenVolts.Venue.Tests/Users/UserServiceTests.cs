@@ -40,8 +40,8 @@ public class UserServiceTests
         Assert.Equal(Role.Staff, gio.Role);
         Assert.True(gio.IsActive);
         var hasher = factory.Services.GetRequiredService<IPinHasher>();
-        var pinWorks = hasher.Verify(gio.SecretHash, "0123");
-        Assert.True(pinWorks);
+        var isPinMatch = hasher.IsMatch(gio.SecretHash, "0123");
+        Assert.True(isPinMatch);
     }
 
     [Fact]

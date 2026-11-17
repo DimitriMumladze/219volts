@@ -8,21 +8,24 @@ public class LoginThrottle(TimeProvider time)
     private readonly Lock _lock = new();
     private readonly Dictionary<int, (int Count, DateTimeOffset LastAt)> _attempts = [];
 
-    public TimeSpan? TryStartAttempt(int userId)
+    public bool TryStartAttempt(int userId, out TimeSpan retryAfter)
     {
         lock (_lock)
         {
             var now = time.GetUtcNow();
             var (count, lastAt) = _attempts.GetValueOrDefault(userId);
 
-            var remaining = lastAt + WaitAfter(count) - now;
+            var wait = WaitAfter(count);
+            var remaining = lastAt + wait - now;
             if (remaining > TimeSpan.Zero)
             {
-                return remaining;
+                retryAfter = remaining;
+                return false;
             }
 
             _attempts[userId] = (count + 1, now);
-            return null;
+            retryAfter = TimeSpan.Zero;
+            return true;
         }
     }
 

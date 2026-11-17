@@ -38,10 +38,10 @@ public class DeviceService(
             return Fail(DeviceError.InvalidChannelCount);
         }
 
-        var error = await ValidateAsync(cleanName, ipAddress, cleanPort, ignoredDeviceId: null);
-        if (error is not null)
+        var validation = await ValidateAsync(cleanName, ipAddress, cleanPort, ignoredDeviceId: null);
+        if (validation.IsFailure)
         {
-            return Fail(error);
+            return Fail(validation.Error);
         }
 
         var now = time.GetUtcNow().UtcDateTime;
@@ -69,10 +69,10 @@ public class DeviceService(
         }
 
         var cleanName = name.Trim();
-        var error = await ValidateAsync(cleanName, ipAddress, port, ignoredDeviceId: id);
-        if (error is not null)
+        var validation = await ValidateAsync(cleanName, ipAddress, port, ignoredDeviceId: id);
+        if (validation.IsFailure)
         {
-            return Fail(error);
+            return Fail(validation.Error);
         }
 
         var oldPort = device.Port.ToString();
@@ -81,7 +81,7 @@ public class DeviceService(
             ("name", device.Name, cleanName),
             ("ip", device.IpAddress, ipAddress),
             ("port", oldPort, newPort));
-        var addressChanged = device.IpAddress != ipAddress || device.Port != port;
+        var hasAddressChanged = device.IpAddress != ipAddress || device.Port != port;
         if (changes.Length == 0)
         {
             return Result<Device>.Ok(device);
@@ -93,7 +93,7 @@ public class DeviceService(
         audit.Record(actor, AuditActions.DeviceUpdated, target, changes);
         await db.SaveChangesAsync();
 
-        if (addressChanged)
+        if (hasAddressChanged)
         {
             statuses.Remove(id);
         }
@@ -110,7 +110,7 @@ public class DeviceService(
             return Fail(DeviceError.NotFound);
         }
 
-        if (await runningSessions.OnDeviceAsync(id))
+        if (await runningSessions.HasSessionOnDeviceAsync(id))
         {
             return Fail(DeviceError.SessionRunning);
         }
@@ -142,35 +142,35 @@ public class DeviceService(
     }
 
 
-    private async Task<string?> ValidateAsync(string name, string ipAddress, int port, int? ignoredDeviceId)
+    private async Task<Result> ValidateAsync(string name, string ipAddress, int port, int? ignoredDeviceId)
     {
         if (name.Length == 0)
         {
-            return DeviceError.InvalidName;
+            return Result.Fail(DeviceError.InvalidName);
         }
 
         if (!IsIPv4(ipAddress))
         {
-            return DeviceError.InvalidIpAddress;
+            return Result.Fail(DeviceError.InvalidIpAddress);
         }
 
         if (port < MinPort || port > MaxPort)
         {
-            return DeviceError.InvalidPort;
+            return Result.Fail(DeviceError.InvalidPort);
         }
 
         var key = name.ToUpperInvariant();
         if (await db.Devices.AnyAsync(d => d.NameKey == key && d.Id != ignoredDeviceId))
         {
-            return DeviceError.DuplicateName;
+            return Result.Fail(DeviceError.DuplicateName);
         }
 
         if (await db.Devices.AnyAsync(d => d.IpAddress == ipAddress && d.Port == port && d.Id != ignoredDeviceId))
         {
-            return DeviceError.DuplicateAddress;
+            return Result.Fail(DeviceError.DuplicateAddress);
         }
 
-        return null;
+        return Result.Ok();
     }
 
     private static bool IsIPv4(string ipAddress) =>

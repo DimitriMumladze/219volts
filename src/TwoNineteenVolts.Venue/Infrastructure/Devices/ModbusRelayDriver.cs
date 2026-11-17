@@ -20,32 +20,45 @@ public class ModbusRelayDriver : IRelayDriver
 
     public Task<Result<IReadOnlyList<bool>>> ReadAllAsync(Device device, CancellationToken cancellationToken)
     {
-        return CallAsync(device, client => ReadCoilsAsync(client, 0, device.ChannelCount, cancellationToken), cancellationToken);
+        return CallAsync(
+            device,
+            client => ReadCoilsAsync(client, 0, device.ChannelCount, cancellationToken),
+            Result<IReadOnlyList<bool>>.Fail,
+            cancellationToken);
     }
 
-    public async Task<Result<bool>> ReadAsync(Device device, int channel, CancellationToken cancellationToken)
+    public async Task<Result<bool>> ReadIsOnAsync(Device device, int channel, CancellationToken cancellationToken)
     {
         var coil = channel - 1;
-        var result = await CallAsync(device, client => ReadCoilsAsync(client, coil, 1, cancellationToken), cancellationToken);
-        if (result.IsFailure)
+        var read = await CallAsync(
+            device,
+            client => ReadCoilsAsync(client, coil, 1, cancellationToken),
+            Result<IReadOnlyList<bool>>.Fail,
+            cancellationToken);
+        if (read.IsFailure)
         {
-            return Result<bool>.Fail(result.Error);
+            return Result<bool>.Fail(read.Error);
         }
 
-        var state = result.Value[0];
-        return Result<bool>.Ok(state);
+        var isOn = read.Value[0];
+        return Result<bool>.Ok(isOn);
     }
 
-    public Task<Result<bool>> SetAsync(Device device, int channel, bool on, CancellationToken cancellationToken)
+    public Task<Result> SetAsync(Device device, int channel, bool shouldBeOn, CancellationToken cancellationToken)
     {
         var coil = channel - 1;
-        return CallAsync(device, client => WriteCoilAsync(client, coil, on, cancellationToken), cancellationToken);
+        return CallAsync(
+            device,
+            client => WriteCoilAsync(client, coil, shouldBeOn, cancellationToken),
+            Result.Fail,
+            cancellationToken);
     }
 
 
-    private async Task<Result<T>> CallAsync<T>(
+    private async Task<TResult> CallAsync<TResult>(
         Device device,
-        Func<ModbusTcpClient, Task<Result<T>>> call,
+        Func<ModbusTcpClient, Task<TResult>> call,
+        Func<string, TResult> failWith,
         CancellationToken cancellationToken)
     {
         try
@@ -56,25 +69,25 @@ public class ModbusRelayDriver : IRelayDriver
                 ReadTimeout = TimeoutMilliseconds,
                 WriteTimeout = TimeoutMilliseconds
             };
-            var connected = await Task.Run(() => Connect(client, device), cancellationToken);
-            if (!connected)
+            var isConnected = await Task.Run(() => TryConnect(client, device), cancellationToken);
+            if (!isConnected)
             {
-                return Result<T>.Fail(DeviceError.NoAnswer);
+                return failWith(DeviceError.NoAnswer);
             }
 
             return await call(client);
         }
         catch (ModbusException)
         {
-            return Result<T>.Fail(DeviceError.ErrorAnswer);
+            return failWith(DeviceError.ErrorAnswer);
         }
         catch (Exception)
         {
-            return Result<T>.Fail(DeviceError.NoAnswer);
+            return failWith(DeviceError.NoAnswer);
         }
     }
 
-    private static bool Connect(ModbusTcpClient client, Device device)
+    private static bool TryConnect(ModbusTcpClient client, Device device)
     {
         var address = IPAddress.Parse(device.IpAddress);
         var endpoint = new IPEndPoint(address, device.Port);
@@ -113,13 +126,13 @@ public class ModbusRelayDriver : IRelayDriver
         return Result<IReadOnlyList<bool>>.Ok(states);
     }
 
-    private static async Task<Result<bool>> WriteCoilAsync(
+    private static async Task<Result> WriteCoilAsync(
         ModbusTcpClient client,
         int coil,
-        bool on,
+        bool shouldBeOn,
         CancellationToken cancellationToken)
     {
-        await client.WriteSingleCoilAsync(UnitId, coil, on, cancellationToken);
-        return Result<bool>.Ok(on);
+        await client.WriteSingleCoilAsync(UnitId, coil, shouldBeOn, cancellationToken);
+        return Result.Ok();
     }
 }

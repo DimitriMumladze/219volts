@@ -9,7 +9,13 @@ public class SwitchOffWarningCleaner(IVenueDbContext db, SwitchOffWarnings warni
 {
     public async Task HandleAsync(IVenueEvent venueEvent, CancellationToken cancellationToken)
     {
-        if (venueEvent is not OutletChanged changed || changed.IsOn != false)
+        if (venueEvent is not OutletChanged changed)
+        {
+            return;
+        }
+
+        var isKnownOff = changed.IsOn == false;
+        if (!isKnownOff)
         {
             return;
         }
