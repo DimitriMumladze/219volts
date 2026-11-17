@@ -1,0 +1,91 @@
+name: Deploy
+
+# A merge into main replaces the container the VPS serves at /219wats/.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# Two deploys at once would race over the same container name.
+concurrency:
+  group: deploy-219wats
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+env:
+  IMAGE: ghcr.io/dimitrimumladze/219wats
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - uses: docker/setup-buildx-action@v4
+
+      - name: Build and push the image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: src/TwoNineteenVolts.Api/Dockerfile
+          push: true
+          tags: |
+            ${{ env.IMAGE }}:latest
+            ${{ env.IMAGE }}:${{ github.sha }}
+          # The VPS prunes by this label, so it never touches another project's images.
+          labels: org.opencontainers.image.source=https://github.com/${{ github.repository }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Replace the container on the VPS
+        uses: appleboy/ssh-action@v1.2.5
+        with:
+          host: ${{ secrets.VPS_HOST }}
+          username: ${{ secrets.VPS_USER }}
+          key: ${{ secrets.VPS_SSH_KEY }}
+          script: |
+            set -e
+
+            # The job's own token, so no registry credentials are stored on the server.
+            echo '${{ secrets.GITHUB_TOKEN }}' | docker login ghcr.io -u '${{ github.actor }}' --password-stdin
+            docker pull '${{ env.IMAGE }}:${{ github.sha }}'
+            docker logout ghcr.io
+
+            # Port and secrets match what nginx and the Shelly cloud expect; the env file stays on the server.
+            docker rm -f 219wats 2>/dev/null || true
+            docker run -d \
+              --name 219wats \
+              --restart unless-stopped \
+              --publish 127.0.0.1:5190:8080 \
+              --env-file /root/219wats.env \
+              '${{ env.IMAGE }}:${{ github.sha }}'
+
+            # Fails the deploy if the new container cannot serve the control panel.
+            for attempt in $(seq 1 10); do
+              if curl -fsS -o /dev/null http://127.0.0.1:5190/; then
+                echo "219wats is serving on 5190"
+                exit_code=0
+                break
+              fi
+              exit_code=1
+              sleep 3
+            done
+            if [ "$exit_code" -ne 0 ]; then
+              echo "the new container did not answer on 5190:"
+              docker logs --tail 50 219wats
+              exit 1
+            fi
+
+            # Keeps a week of images for an instant rollback, drops the older ones.
+            docker image prune -af \
+              --filter 'label=org.opencontainers.image.source=https://github.com/${{ github.repository }}' \
+              --filter 'until=168h'

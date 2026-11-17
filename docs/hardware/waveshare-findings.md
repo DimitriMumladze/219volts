@@ -14,11 +14,13 @@ Chosen as the development board and the trial unit for the first client (16 spot
 - **Power-on state is not documented.** No "remember last state" setting is mentioned. **TEST 1:** turn some relays on, pull power, plug back in: do they come back off or as they were?
 - **No watchdog / communication-loss behaviour documented.** Expect relays to keep their last state if the PC or cable dies. **TEST 2:** turn a relay on, unplug the network cable: does it stay on?
 - Software rule regardless of results: **when a board comes back online, re-send the expected state of all its channels** (FC 0F write-all). This is the automatic form of the planned drift detection.
+  - **Built (17 Nov, decision 65):** the service's drift fix switches a running session's spot back on whenever a check reads it off (also after the board returns). Spots without a session are left alone, so there is no blanket write-all.
 
-## Built-in timer (safety net)
+## Built-in timer (not used)
+- **Decided 14 Nov (decision 58): timing lives in the service; the flash timers below are not used.** Kept for reference only.
 - "Flash on" (register 0x0200 + relay) and "flash off" (0x0400 + relay), interval = value × 100 ms, **max 0x7FFF ≈ 54.6 min** (own calculation from the wiki's formula).
 - Use flash-on as the equivalent of Shelly's `toggle_after`: relay goes on and turns itself off after the interval, even if the PC dies. Sessions longer than ~54 min: service re-arms the timer periodically (e.g. every 30 min).
-- **TEST 3:** start a flash-on timer, then send a plain "on" to the same relay: is the timer cancelled? (Same open question as Shelly.) Also check what a new flash-on does to a running one.
+- ~~**TEST 3:** start a flash-on timer, then send a plain "on" to the same relay: is the timer cancelled?~~ Not needed: no flash timers are used.
 
 ## Modbus details for the driver
 - Function codes: 01 read coils (relay states), 03 read holding register, 05 write single coil, 0F write multiple coils. (06 listed, no example.)
@@ -43,6 +45,7 @@ Chosen as the development board and the trial unit for the first client (16 spot
 
 ## Not documented (decide or test)
 - Number of simultaneous TCP connections. **TEST 4:** keep the service connected and open the web page / Vircom at the same time. Plan: the service is the only Modbus client.
+  - **Built (decision 63/67):** the service never opens two connections to one board at a time (the device gateway takes one turn per device; a test with the real Modbus driver proves it). TEST 4 is still needed for other clients (web page, Vircom) running alongside.
 - Firmware update procedure (only a BootLoader link).
 - DHCP vs static default.
 - Real switching speed / response time. **TEST 5:** time 100 on/off commands and status reads.

@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/src/">
+    <Project Path="src/TwoNineteenVolts.Api/TwoNineteenVolts.Api.csproj" />
     <Project Path="src/TwoNineteenVolts.Venue/TwoNineteenVolts.Venue.csproj" />
   </Folder>
   <Folder Name="/tests/">

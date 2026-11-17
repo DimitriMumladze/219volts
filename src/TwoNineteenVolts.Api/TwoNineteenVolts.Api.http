@@ -1,0 +1,31 @@
+@HostAddress = http://localhost:5190
+# Local-only key. Set the same value once with:
+#   dotnet user-secrets set "ApiKey:Key" "local-dev-key" --project src/TwoNineteenVolts.Api
+@ApiKey = local-dev-key
+@DeviceId = e4b06371d5e8
+
+### Register the device
+POST {{HostAddress}}/api/devices
+X-Api-Key: {{ApiKey}}
+Content-Type: application/json
+
+{ "deviceId": "{{DeviceId}}" }
+
+### Status
+GET {{HostAddress}}/api/devices/{{DeviceId}}/status
+X-Api-Key: {{ApiKey}}
+
+### Turn on
+POST {{HostAddress}}/api/devices/{{DeviceId}}/on
+X-Api-Key: {{ApiKey}}
+
+### Turn off
+POST {{HostAddress}}/api/devices/{{DeviceId}}/off
+X-Api-Key: {{ApiKey}}
+
+### Turn on for 30 seconds
+POST {{HostAddress}}/api/devices/{{DeviceId}}/timer
+X-Api-Key: {{ApiKey}}
+Content-Type: application/json
+
+{ "seconds": 30 }

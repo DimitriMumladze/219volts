@@ -8,6 +8,7 @@ Infrastructure overview doc (for sharing): https://claude.ai/artifact/GpaxFJ9xCy
 Brief for the frontend + payments developer (friend): https://claude.ai/artifact/Bb6ka2LfDuiFMbLbp9yiSx
 Detailed Auth design: `docs/superpowers/specs/2026-11-11-venue-auth-design.md` (project: `claude/venue-auth-design-progress.md`).
 Devices v1 input: `docs/devices-v1-decisions.md`. Relay board details: `docs/hardware/waveshare-findings.md`.
+Detailed specs (local, git-ignored, `docs/superpowers/specs/`): Devices v1 (14 Nov), venue events + Sessions (17 Nov), device gateway (17 Nov).
 
 ## Decided
 1. **Packages scale by channel count.** Venues range from ~5 to 32+ spots. Relay hardware is stacked in standard building blocks (e.g. 16-channel Ethernet relay boards in the panel; Shelly Pro 4PM for very small sites). See 50.
@@ -20,7 +21,7 @@ Devices v1 input: `docs/devices-v1-decisions.md`. Relay board details: `docs/har
    - UI technology: **React + TypeScript + Vite suggested; the frontend developer decides** (see 34). Node only at build time; TypeScript client generated from the API's OpenAPI description; `@microsoft/signalr` for live updates.
 8. **Same UI and API contract locally and remotely (agreed).** Local service exposes `/api/...`; cloud exposes `/venues/{id}/api/...` and forwards requests down the venue's open connection. Differences: remote login is personal email + password (see 44) instead of name + PIN, "venue offline" banner remotely. No local-only actions (35).
 9. **Self-update through the cloud (agreed).** Release = self-contained `dotnet publish` zip (includes .NET runtime and the UI files), built by GitHub Actions. Signed manifest + zip in cloud storage; cloud tells venues a version is available; local service downloads and verifies; a separate small Updater service stops/swaps/starts/health-checks and rolls back on failure. Side-by-side version folders. Staged rollout. Flash drive = same zip, run Updater manually.
-   - Restart-safe design: sessions stored as end timestamps in the DB; relays keep state during restart.
+   - Restart-safe design: sessions stored as end timestamps in the DB; relays keep state during restart. (Sessions that ran out while the service was down are ended at startup: see 65.)
    - Open UIs detect a version change over SignalR and reload; API changes stay backward compatible for one version.
 10. **Device control lives only in the venue's local service.** The cloud has no Devices module and never knows relay IPs or channel numbers. Cloud ↔ venue messages are business-level ("start/extend session on spot 12 for 60 min, payment X"); the local service maps spots to relay channels.
    - Local service modules: Devices (drivers + channel mapping), Tables/Sessions (timers, pricing), Local auth, Cloud link (SignalR client), Health.
@@ -29,11 +30,11 @@ Devices v1 input: `docs/devices-v1-decisions.md`. Relay board details: `docs/har
 ### Decided 10 Nov 2026
 11. **One relay channel per spot.** A spot is anything that is switched (monitor, tennis table, billiard table); everything on it is on one circuit.
 12. **Local DB: SQLite + EF Core.** Only the local service touches it.
-13. **Cloud access to venue data: live via SignalR now, sync-ready.** Nothing of the venue's data is stored in the cloud yet (exception: remote accounts, 44). An outbox table exists in SQLite from day one, so a one-way venue → cloud sync can be switched on later.
+13. **Cloud access to venue data: live via SignalR now, sync-ready.** Nothing of the venue's data is stored in the cloud yet (exception: remote accounts, 44). An outbox table exists in SQLite from day one, so a one-way venue → cloud sync can be switched on later. **(Changed: no outbox table yet; venue events are delivered in memory, see 61.)**
 14. **Cloud DB: PostgreSQL.** Hosting provider: chosen by the friend (42).
 15. **Payment provider: Flitt.** Hold → confirm → capture: create order with `preauth = Y`, send command to venue, capture only after the venue confirms the spot is on; release the hold if it doesn't.
 16. **QR = fixed sticker per spot.** Customer can start or extend; preset packages plus custom duration.
-17. **Prices set by the owner, editable locally or remotely** (same data; lives in the venue SQLite, remote edits go down the SignalR connection).
+17. **Prices set by the owner, editable locally or remotely** (same data; lives in the venue SQLite, remote edits go down the SignalR connection). Prices are hourly rates per spot group: see 64.
 18. **Installation: our team installs on site with a setup program.** Normal desktop shortcut on the counter PC (no kiosk auto-start).
 19. **Relay addressing: static IP or DHCP reservation**, set during install; IP stored per device.
 20. **Venue software = one ASP.NET Core app, a modular monolith** (confirms and refines 7). Runs as a Windows Service. Devices is an isolated module inside it: own registration, own DB tables, other modules reach it only through a small interface, so it can be split into its own Worker Service later if a real reason appears.
@@ -54,10 +55,12 @@ Devices v1 input: `docs/devices-v1-decisions.md`. Relay board details: `docs/har
    - `IRelayDriver` interface **added now** (Application layer), Shelly as first implementation; justified under §1.1 by the decided Ethernet boards.
    - `/health` endpoint for the updater (decision 9) proposed; to confirm.
    - Registering devices / mapping spots requires the Manager role.
-   - Later, with Sessions: drift detection ("should be on but is off"), on-device auto-off timer, re-sending expected states when a board comes back online.
+   - Later, with Sessions: drift detection ("should be on but is off"), on-device auto-off timer, re-sending expected states when a board comes back online. **(Changed: no on-device timers (58); drift fix and re-sending are done by the service, see 65.)**
+   - **(Changed: device and spot setup is Support-only, see 54; reachability check details in 60.)**
 28. **Local auth (design sections 1–4 agreed; full detail in the auth spec):**
    - One login per employee; users in the venue SQLite (works offline).
    - Login = **tap your name, then 4-digit PIN** (same length for all). Login screen lists active users (not Support).
+   - **(Changed: one Manager who can't be deactivated, no role change, no `auth.session_expired` background check (55); setup roles in 54; push-triggered requests keep an open dashboard logged in (62).)**
    - **No lockout; slow down instead:** after 3 wrong PINs for a user, each next attempt must wait 1 → 2 → 4 → 8 → 16 → 30 s (max); correct PIN resets.
    - **Roles: Staff, Manager, Support.** Manager = setup (devices, spots) + user management. Support = everything a Manager can, plus future support-only functions managers must not access. Policies: `Staff` (all three), `Manager` (Manager + Support), `Support` (Support only).
    - **Only managers set PINs** (for anyone, including their own). PINs stored hashed (`PasswordHasher`).
@@ -68,8 +71,8 @@ Devices v1 input: `docs/devices-v1-decisions.md`. Relay board details: `docs/har
    - **First Manager + Support account created by a setup command** run by our team on the venue PC (`TwoNineteenVolts.Venue.exe setup`). No first-run web screen.
    - **"219volts Support" account:** one per venue, long random password (kept in our password manager), logs in via hidden `/support` route; **hidden from the user list, cannot be changed or deactivated by managers**; **shown truthfully in the audit log**; **disclosed in the client agreement**.
    - **HTTP in v1; HTTPS on the venue LAN is its own task before the first real install.**
-29. **Audit log:** records every change (switch on/off, device/spot/user changes), logins/logouts (incl. auto-logout, switch-user) and failed logins; each entry = when, who, action, target, **source (local/remote)**. Viewing/reading is not logged. **Managers only** can view it. **Kept 1 year**, older entries deleted automatically. Audit is its own feature with a small `IAuditLog` interface used by other features.
-30. ~~**Remote access via personal cloud accounts linked by a one-time code, with 2FA.**~~ **Replaced on 13 Nov 2026 by 44.** Still valid: the `RemoteAccessAllowed` switch on `User` (added now, no role restriction; managers decide whom to enable); remote requests act as the linked local user with that user's role; deactivating the local user blocks remote access immediately.
+29. **Audit log:** records every change (switch on/off, device/spot/user changes), logins/logouts (incl. auto-logout, switch-user) and failed logins; each entry = when, who, action, target, **source (local/remote)**. **(Changed: no `source` column until remote access is built, see 56.)** Viewing/reading is not logged. **Managers only** can view it. **Kept 1 year**, older entries deleted automatically. Audit is its own feature with a small `IAuditLog` interface used by other features.
+30. ~~**Remote access via personal cloud accounts linked by a one-time code, with 2FA.**~~ **Replaced on 13 Nov 2026 by 44.** Still valid: the `RemoteAccessAllowed` switch on `User` (**not added yet — comes with remote access, see 56**; no role restriction; managers decide whom to enable); remote requests act as the linked local user with that user's role; deactivating the local user blocks remote access immediately.
 31. **Runs as a Windows Service from day one** (`AddWindowsService()`; F5 still runs it as a console app).
 32. **Tests start now:** `tests/TwoNineteenVolts.Venue.Tests` (xUnit). Auth is the first feature with real rules; repo standard §8 to be rewritten in the spec.
 33. **One `VenueDbContext`** for the whole venue app, in `Infrastructure/Data/`; each feature's EF configuration lives in `Infrastructure/<Feature>/`. One migration history; migrations applied automatically at startup. Data folder in config (default `C:\ProgramData\219volts\`, file `venue.db`).
@@ -77,8 +80,8 @@ Devices v1 input: `docs/devices-v1-decisions.md`. Relay board details: `docs/har
 ### Decided 12–13 Nov 2026 (frontend/payments brief)
 34. **Work split:** Lasha's friend builds the venue staff UI, the owner remote portal, the customer QR page and the cloud Payments module (.NET, Flitt), including venue subscription billing. Lasha builds the venue local service and the cloud gateway. UI framework: React + TS + Vite is a suggestion; the friend decides.
 35. **All actions are available remotely** (owner portal), including device/spot setup. No local-only actions.
-36. **QR link holds only constant values:** venue code + spot code (e.g. `/q/{venueCode}/{spotCode}`). Merchant ID, prices and staff are kept and managed in the cloud. The term "spot" may be renamed.
-37. **QR page:** shows remaining time; customer adds time by typing minutes, with suggestions 5, 10, 15, 30, 60. **Price = minutes / 60 × owner's hourly rate** (pro-rated), calculated on the server. Languages: **Georgian (primary), English, Russian.** On-screen receipt only (amount, minutes, order number); no fiscal receipt part.
+36. **QR link holds only constant values:** venue code + spot code (e.g. `/q/{venueCode}/{spotCode}`). Merchant ID, prices and staff are kept and managed in the cloud. The term "spot" may be renamed. **(Refined: spot codes are generated, 6 characters a–z 0–9, and Support can regenerate one, see 57.)**
+37. **QR page:** shows remaining time; customer adds time by typing minutes, with suggestions 5, 10, 15, 30, 60. **Price = minutes / 60 × owner's hourly rate** (pro-rated), calculated on the server. **(Refined: the rate is the spot group's (64); 1–600 minutes, rounded half up to 0.01 ₾ (65).)** Languages: **Georgian (primary), English, Russian.** On-screen receipt only (amount, minutes, order number); no fiscal receipt part.
 38. **Two SignalR links:** cloud ↔ venue, and cloud ↔ QR page. The QR page counts down in the browser; the cloud pushes corrections and payment results.
 39. **Wait for the venue's answer after a payment hold: 1 minute**, then release the hold.
 40. **RabbitMQ is advised in the cloud wherever there is an occasion** (separate services passing messages). Still none on the venue side (21).
@@ -92,10 +95,10 @@ Devices v1 input: `docs/devices-v1-decisions.md`. Relay board details: `docs/har
    - **Email invitations (agreed 13 Nov):** a manager turns on remote access and enters **only the email**; managers never type or see passwords. No account yet → email link to set own password. Account exists → invitation the person must **accept** before the venue appears. Needs the venue online. Users page shows invitation status (sent, accepted).
    - **Changing the password:** only the user (change-password screen) or via a "forgot password" email link.
    - Deactivating the local user or turning remote access off blocks remote login to that venue immediately.
-45. **Control panel layout:** collapsible side menu like modern code editors (icons only when collapsed, icons + titles when expanded); current user, switch-user and log-out in the menu; pages shown by role. Pages: Dashboard (everyone), Devices and spots setup, Prices, Users, Audit log, Statistics (all Manager).
-46. **Dashboard = one card per spot.** Card shows name, on/off, live countdown + end time, device-offline warning. A three-dot button opens a modal with start/extend/stop (duration input + quick values 5, 10, 15, 30, 60, same as the QR page), session details (start, end, who started it — staff or QR —, amount) and device info (relay + channel, online/offline, last seen).
-47. **Audit page filters:** date range, user, action type, source, spot. Loaded page by page from the server.
-48. **Statistics page (ideas, not decided), Manager only:** revenue per day/week/month, spot usage, busy hours, per staff. Needs session history on the backend.
+45. **Control panel layout:** collapsible side menu like modern code editors (icons only when collapsed, icons + titles when expanded); current user, switch-user and log-out in the menu; pages shown by role. Pages: Dashboard (everyone), Devices and spots setup, Prices, Users, Audit log, Statistics (all Manager). **(Changed: devices and spots setup is Support-only; Manager renames spots, sets group rates and renames groups, see 54 and 64.)**
+46. **Dashboard = one card per spot.** Card shows name, on/off, live countdown + end time, device-offline warning. A three-dot button opens a modal with start/extend/stop (duration input + quick values 5, 10, 15, 30, 60, same as the QR page), session details (start, end, who started it — staff or QR —, amount) and device info (relay + channel, online/offline, last seen). **(Added: the card also shows the group and a "couldn't switch off" warning; staff may lower the amount, see 65.)**
+47. **Audit page filters:** date range, user, action type, source, spot. Loaded page by page from the server. **(No source filter until remote access, see 56.)**
+48. **Statistics page (ideas, not decided), Manager only:** revenue per day/week/month, spot usage, busy hours, per staff. Needs session history on the backend. **(Session records exist and are kept forever (65); the statistics API itself is not built yet.)**
 49. **Counter payments are recorded as an amount only** (no cash/terminal split), so revenue covers both counter and QR payments.
 
 ### Decided 14 Nov 2026 (relay hardware and connections)
@@ -109,12 +112,47 @@ Devices v1 input: `docs/devices-v1-decisions.md`. Relay board details: `docs/har
 52. **Wiring rule: every spot on COM + NO.** A dead or unpowered relay board means all spots off. A "fail-on" design (NC wiring + heartbeat timer) was considered and **rejected** to keep the software simple. Manual Auto/Off/Hand bypass switches in the panel are possible per venue (no software impact); not decided as standard.
 53. **Development / trial hardware: one Waveshare Modbus POE ETH Relay 16CH** (being bought), with a 12 V wall adapter, a USB-to-Ethernet adapter and a cable for the laptop. It is the trial unit for the first client (one month free). Driver facts and the five tests to run on arrival are in `docs/hardware/waveshare-findings.md`.
    - Driver rules from the findings: Modbus TCP port 502, unit ID 1, coils 0–15 = channels 1–16, only explicit on/off (**never toggle**, so retries are safe).
+   - **(Changed: the board's flash timers are not used, see 58.)**
+
+### Decided 14–15 Nov 2026 (Devices v1, built)
+54. **Setup roles.** Registering, editing and deleting devices, and creating, mapping, unmapping, re-coding and archiving spots are **Support only**. Manager renames spots and sees device status; Staff sees spots and switches them. (Changes 27, 28, 45.)
+55. **Auth simplifications.** There is one Manager, who can't be deactivated; no role changes; no `auth.session_expired` background check. (Changes 28.)
+56. **Remote-access parts wait for remote access.** No audit `source` column and no `RemoteAccessAllowed` on `User` until remote access (44) is built. (Changes 29, 30, 47.)
+57. **Spots and devices.** Spot codes are generated (6 characters a–z 0–9) and Support can regenerate one. Spots are **archived**, never deleted; devices are **deleted**, and their spots become unmapped. A spot can be unmapped. (Refines 36.)
+58. **No on-device timers.** Timing lives in the venue service; drivers only send explicit on/off (no Shelly `toggle_after`, no Waveshare flash timers). (Changes 27 and the Waveshare notes.)
+59. **Names compare in every language** (Georgian, Russian, English) through an upper-case key column with a unique index.
+60. **Reachability check details.** `Devices:CheckInterval` must be greater than zero or the service refuses to start. A refused connection counts as "no answer" (Windows needs about 2 s to report it).
+
+### Decided 16–17 Nov 2026 (venue events + Sessions, built)
+61. **Venue events.** One way in: every change goes through one service method, whoever calls it (UI, background jobs, later the cloud). One way out: after saving, the service publishes one event per action into an **in-memory queue**; one worker hands events to listeners. Audit stays inside the services. No outbox yet. (Changes 13.)
+62. **Live screens.** A local SignalR hub (`/hubs/venue`) sends "spot X changed"; screens then load that spot. Screens connect first, then load the list, reload everything on every reconnect, and retry forever. The hub closes on logout, switch-user and deactivation. Accepted: the reload requests count as activity, so an open dashboard can stay logged in while things happen (affects 28's auto-logout). Cloud copy of the hub comes with the cloud link.
+63. **One conversation per device at a time.** Every talk with a relay device (checks, switches, sessions) takes that device's turn; waiting more than 2 s for the turn counts as "no answer" and as a missed check. This also stops an older check answer from overwriting a newer switch.
+64. **Spot groups with hourly rates.** Every spot belongs to exactly one group; each group has an hourly rate (> 0, ≤ 9 999.99, 2 decimals). Support creates groups, assigns spots and archives groups (only when no active spot is in them); Manager renames groups and sets rates. A rate change affects only new starts and extends. (Refines 17, 37.)
+65. **Sessions.**
+   - All staff can start, extend and stop. 1–600 minutes per start or extend. Start on a spot that already has a session is refused (409).
+   - **Prepaid:** the amount is fixed at start/extend = minutes / 60 × group rate, **rounded half up to 0.01 ₾**. Staff may type a lower amount (0 up to the price, 2 decimals); both amounts are stored. Stop keeps the full amount. Money is stored as whole tetri.
+   - A start whose relay doesn't switch on creates no session and no charge. A stop or manual off whose relay doesn't switch off keeps the session running.
+   - Time keeps running while a device is offline; staff can extend to make up.
+   - A 1 s timer ends sessions on time: switch off, retry once; if still failing the session ends anyway with a memory-only "couldn't switch off" warning that clears when the relay reads off.
+   - After a restart, sessions that ran out while the service was down are ended and switched off.
+   - **Drift fix:** a running session whose relay reads off is switched back on; a relay on without a session is left alone.
+   - Manual off on a spot with a running session ends the session (the UI shows a warning first).
+   - Remapping or archiving a spot, or deleting its device, is refused while a session runs.
+   - Automatic actions appear in the audit as **Timer**, **Drift fix** and **Restart**.
+   - Session records are kept forever.
+66. **Accepted risk:** a setup change (remap, archive, device delete) landing in the same milliseconds as a Start on that spot can leave a session on an unmapped spot that neither the timer nor Stop can end (database edit needed; the relay stays on).
+
+### Decided 17–18 Nov 2026 (device gateway, built)
+67. **Device gateway.** Spots and sessions reach relays only through one small device gateway that speaks in **outlets** (device + channel): plain switch, outlet state, "hold this outlet" (for check-switch-save in one turn) and a setup check. Only the sessions service holds outlets; everyone else makes one-line calls. The gateway verifies every switch: a relay that reads back the wrong state is the error **`DeviceDidNotObey`** (HTTP 502 with the real state `isOn`), replacing `SpotStateMismatch`. A device deleted in the middle of a request answers 409 "spot not mapped". **Decision 20 is now enforced by an architecture test.**
+68. **One place per rule** inside the venue app: spot visibility and spot views (spot reader), session pricing, and the "a → b" audit wording each live in one class.
 
 ## Open
 - HTTPS on the venue LAN (before first real install).
 - Subscription packages and prices.
-- QR: "Start" on a spot that just became busy (refuse or extend?); custom minutes min/max; rounding of the pro-rated price.
+- QR: same rules as the counter now apply (refuse a Start on a busy spot, 1–600 minutes, rounding half up — see 65); still open whether the QR page offers anything special on a busy spot.
 - Blocked venue: what happens to sessions running at that moment; protection against changing the PC clock; warnings during the grace period.
 - Controller mini PC model. Proposal: dual Ethernet port (one to relays, one to router), Windows 11 Pro preinstalled, BIOS "power on after power loss"; candidate Beelink EQ14 (N150), cheaper alternative GMKtec G2 Plus.
 - Manual bypass switches: standard in every package, or optional extra?
-- Waveshare board tests on arrival (power-loss state, cable unplugged, timer vs plain "on", simultaneous connections, response time).
+- Waveshare board tests on arrival (power-loss state, cable unplugged, simultaneous connections, response time). The timer test is no longer needed (58).
+- Statistics API (records exist, see 65).
+- Venue → cloud sync / outbox (13, 61).

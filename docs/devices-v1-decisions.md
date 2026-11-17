@@ -3,6 +3,8 @@
 Input for planning the Devices v1 spec. Compiled 14 Nov 2026 from the 219volts decision log (`architecture-decisions.md`, decisions 1–49) plus the hardware decisions made on 14 Nov 2026.
 Status markers: **Decided** = agreed with Lasha. **Proposal** = recommended, not yet confirmed; the planner may adopt or raise it.
 
+> **Status 18 Nov 2026: Devices v1 is built** (with Sessions and the device gateway on top). This file is kept as the planning input it was. Where it differs from what was built, the decision log wins: setup is Support-only (54); spot codes are generated and can be regenerated (57); spots are archived and devices deleted (57); no on-device timers (58); re-sending expected states and drift detection are done by Sessions (65); spots and sessions reach devices only through the device gateway (67).
+
 ---
 
 ## 1. Decision 27: Devices v1 scope and rules (Decided, 11 Nov 2026)

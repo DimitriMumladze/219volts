@@ -1,0 +1,30 @@
+name: CI
+
+# Every change is built before it can reach main, so a merge to main is always deployable.
+on:
+  push:
+    branches: [dev]
+  pull_request:
+    branches: [main, dev]
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
+      - run: dotnet restore TwoNineteenVolts.slnx
+
+      - run: dotnet build TwoNineteenVolts.slnx --configuration Release --no-restore
+
+      # Builds the image the deploy will build, so a broken Dockerfile fails here instead of mid-deploy.
+      - name: Build the container image
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          file: src/TwoNineteenVolts.Api/Dockerfile
+          push: false
