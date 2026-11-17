@@ -1,5 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Logging.Testing;
 using TwoNineteenVolts.Venue.Application.Audit;
 using TwoNineteenVolts.Venue.Application.Devices;
 using TwoNineteenVolts.Venue.Application.Events;
@@ -152,6 +154,30 @@ public class SessionTickServiceTests
     }
 
     [Fact]
+    public async Task Failed_drift_fix_waits_for_the_next_check()
+    {
+        using var factory = new VenueAppFactory();
+        var (panel, spot) = await AddSpotAsync(factory);
+        await StartAsync(factory, spot);
+        await TurnOffBehindTheBackAsync(factory, panel);
+        factory.Waveshare.IgnoreSet = true;
+        var setOn = $"set {panel}/{Channel} on";
+        var triesBefore = factory.Waveshare.Calls.Count(c => c == setOn);
+
+        for (var tick = 1; tick <= 3; tick++)
+        {
+            await TickAsync(factory);
+        }
+
+        var triesAfterTicks = factory.Waveshare.Calls.Count(c => c == setOn) - triesBefore;
+        await CheckAsync(factory);
+        await TickAsync(factory);
+        var triesAfterCheck = factory.Waveshare.Calls.Count(c => c == setOn) - triesBefore;
+        Assert.Equal(1, triesAfterTicks);
+        Assert.Equal(2, triesAfterCheck);
+    }
+
+    [Fact]
     public async Task Drift_fix_does_nothing_after_a_stop()
     {
         using var factory = new VenueAppFactory();
@@ -222,6 +248,89 @@ public class SessionTickServiceTests
         var charges = await ChargeCountAsync(factory);
         Assert.Equal(SessionError.NotRunning, extend.Error);
         Assert.Equal(1, charges);
+    }
+
+    [Fact]
+    public async Task Extend_waits_for_the_timer_at_the_door()
+    {
+        using var factory = new VenueAppFactory();
+        var (panel, spot) = await AddSpotAsync(factory);
+        await StartAsync(factory, spot);
+        factory.Time.Advance(OneHour);
+        factory.Waveshare.SetGate = new TaskCompletionSource();
+
+        var ticking = TickAsync(factory);
+        SpinWait.SpinUntil(() => factory.Waveshare.Calls.Contains($"set {panel}/{Channel} off"), FiveSeconds);
+        var extending = UseSessionsAsync(factory, sessions => sessions.ExtendAsync(spot, 30, null));
+        var extendFinishedEarly = SpinWait.SpinUntil(() => extending.IsCompleted, TimeSpan.FromMilliseconds(300));
+        factory.Waveshare.SetGate.SetResult();
+        await ticking;
+        var extended = await extending;
+
+        var charges = await ChargeCountAsync(factory);
+        Assert.False(extendFinishedEarly);
+        Assert.Equal(SessionError.NotRunning, extended.Error);
+        Assert.Equal(1, charges);
+    }
+
+    [Fact]
+    public async Task Dead_board_does_not_delay_other_boards()
+    {
+        using var factory = new VenueAppFactory();
+        var (panel, panelSpot) = await AddSpotAsync(factory);
+        var bar = await TestDevices.AddAsync(factory, "Bar", DeviceKind.ShellyGen2, "192.168.10.30", 80, 1);
+        var barSpot = await TestSpots.AddAsync(factory, "Bar table", bar, 1);
+        await StartAsync(factory, panelSpot);
+        factory.Time.Advance(TimeSpan.FromMinutes(1));
+        await StartAsync(factory, barSpot);
+        factory.Time.Advance(OneHour);
+        factory.Waveshare.SetGate = new TaskCompletionSource();
+
+        var ticking = TickAsync(factory);
+        var barSwitchedOff = SpinWait.SpinUntil(() => factory.Shelly.Calls.Contains($"set {bar}/1 off"), FiveSeconds);
+        factory.Waveshare.SetGate.SetResult();
+        await ticking;
+
+        var running = await RunningCountAsync(factory);
+        Assert.True(barSwitchedOff);
+        Assert.Contains($"set {panel}/{Channel} off", factory.Waveshare.Calls);
+        Assert.Equal(0, running);
+    }
+
+    [Fact]
+    public async Task Timer_switch_off_failure_is_logged()
+    {
+        using var factory = new VenueAppFactory();
+        factory.ExtraServices = services => services.AddLogging(logging => logging.AddFakeLogging());
+        var (_, spot) = await AddSpotAsync(factory);
+        await StartAsync(factory, spot);
+        factory.Time.Advance(OneHour);
+        factory.Waveshare.Error = DeviceError.ErrorAnswer;
+
+        await TickAsync(factory);
+
+        var records = factory.Services.GetFakeLogCollector().GetSnapshot();
+        var warnings = records
+            .Where(r => r.Level == LogLevel.Warning && r.Message.Contains($"spot {spot}"))
+            .ToList();
+        Assert.NotEmpty(warnings);
+    }
+
+    [Fact]
+    public async Task Cancelled_tick_stops_before_the_next_session()
+    {
+        using var factory = new VenueAppFactory();
+        var (_, spot) = await AddSpotAsync(factory);
+        await StartAsync(factory, spot);
+        factory.Time.Advance(OneHour);
+        using var cancelled = new CancellationTokenSource();
+        cancelled.Cancel();
+
+        var tick = ActivatorUtilities.CreateInstance<SessionTickService>(factory.Services);
+        await tick.RunOnceAsync(cancelled.Token);
+
+        var running = await RunningCountAsync(factory);
+        Assert.Equal(1, running);
     }
 
     [Fact]

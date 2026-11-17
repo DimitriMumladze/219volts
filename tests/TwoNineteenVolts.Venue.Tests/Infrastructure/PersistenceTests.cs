@@ -181,7 +181,17 @@ public class PersistenceTests
         session.Extend(15);
         session.End(endedAt, SessionEndReason.ManualOff, 8, "Nino");
         await SaveAsync(factory, session);
-        var charge = new SessionCharge(session.Id, ChargeKind.Extend, CreatedAt, null, "Timer", 15, 250, 0);
+        var charge = new SessionCharge
+        {
+            SessionId = session.Id,
+            Kind = ChargeKind.Extend,
+            At = CreatedAt,
+            UserId = null,
+            UserName = "Timer",
+            Minutes = 15,
+            ComputedTetri = 250,
+            ChargedTetri = 0
+        };
         await SaveAsync(factory, charge);
 
         using var scope = factory.Services.CreateScope();

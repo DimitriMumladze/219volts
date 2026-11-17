@@ -114,26 +114,12 @@ public static class SpotEndpoints
         SwitchOffWarnings warnings)
     {
         var result = await spots.SwitchAsync(id, request.On);
-        if (result.Error == SpotError.StateMismatch)
+        if (result.IsFailure)
         {
-            return await MismatchProblemAsync(id, db, statuses);
+            return await SpotProblems.ForSpotAsync(result.Error, id, db, statuses);
         }
 
         return await ToResultAsync(result, db, statuses, warnings);
-    }
-
-    private static async Task<IResult> MismatchProblemAsync(int id, IVenueDbContext db, DeviceStatuses statuses)
-    {
-        var spot = await db.Spots.SingleAsync(s => s.Id == id);
-        if (spot.DeviceId is not int deviceId || spot.Channel is not int channel)
-        {
-            return SpotProblems.ToProblem(SpotError.StateMismatch);
-        }
-
-        var status = statuses.Get(deviceId);
-        var realState = status.IsOn(channel);
-        var extra = new Dictionary<string, object?> { ["isOn"] = realState };
-        return Problems.Create(SpotError.StateMismatch, StatusCodes.Status502BadGateway, extra);
     }
 
     private static async Task<IResult> ToResultAsync(Result<Spot> result, IVenueDbContext db, DeviceStatuses statuses, SwitchOffWarnings warnings)

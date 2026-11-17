@@ -42,7 +42,7 @@ namespace TwoNineteenVolts.Venue.Infrastructure.Data.Migrations
                 name: "SessionCharges",
                 columns: table => new
                 {
-                    Id = table.Column<int>(type: "INTEGER", nullable: false)
+                    Id = table.Column<long>(type: "INTEGER", nullable: false)
                         .Annotation("Sqlite:Autoincrement", true),
                     SessionId = table.Column<int>(type: "INTEGER", nullable: false),
                     Kind = table.Column<string>(type: "TEXT", nullable: false),

@@ -211,16 +211,11 @@ public class SpotService(
 
         var device = await db.Devices.SingleAsync(d => d.Id == deviceId);
         var switched = await gate.RunAsync(device, board => SwitchInsideGateAsync(board, spot.Id, channel, on, actor));
-        if (switched.IsFailure)
+        var error = SwitchFailures.ErrorOf(switched, on);
+        if (error is not null)
         {
-            await failures.RecordAsync(spot.Id, actor, switched.Error);
-            return Fail(switched.Error);
-        }
-
-        if (switched.Value != on)
-        {
-            await failures.RecordAsync(spot.Id, actor, SpotError.StateMismatch);
-            return Fail(SpotError.StateMismatch);
+            await failures.RecordAsync(spot.Id, actor, error);
+            return Fail(error);
         }
 
         var target = AuditTarget.Spot(spot.Id);
@@ -266,7 +261,8 @@ public class SpotService(
     private async Task<Result<bool>> SwitchInsideGateAsync(Board board, int spotId, int channel, bool on, AuditActor actor)
     {
         var switched = await board.SwitchAsync(channel, on);
-        if (switched.IsFailure || switched.Value != on || on)
+        var error = SwitchFailures.ErrorOf(switched, on);
+        if (error is not null || on)
         {
             return switched;
         }

@@ -118,6 +118,22 @@ public class SessionEndpointTests
     }
 
     [Fact]
+    public async Task Session_mismatch_includes_the_relay_state()
+    {
+        using var factory = new VenueAppFactory();
+        var spot = await AddSpotAsync(factory);
+        using var client = await StaffClientAsync(factory);
+        factory.Waveshare.IgnoreSet = true;
+
+        var start = await client.PostAsJsonAsync($"/api/spots/{spot}/session", new { minutes = 60 });
+
+        var problem = (await start.Content.ReadFromJsonAsync<ProblemDetails>())!;
+        var isOn = problem.Extensions["isOn"]!.ToString();
+        Assert.Equal(HttpStatusCode.BadGateway, start.StatusCode);
+        Assert.Equal("False", isOn);
+    }
+
+    [Fact]
     public async Task Switch_off_warning_shows_while_the_relay_is_not_off()
     {
         using var factory = new VenueAppFactory();

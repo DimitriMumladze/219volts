@@ -11,6 +11,7 @@ using TwoNineteenVolts.Venue.Domain.Devices;
 using TwoNineteenVolts.Venue.Domain.Sessions;
 using TwoNineteenVolts.Venue.Domain.Users;
 using TwoNineteenVolts.Venue.Infrastructure.Data;
+using TwoNineteenVolts.Venue.Infrastructure.Devices;
 using TwoNineteenVolts.Venue.Tests.Devices;
 using TwoNineteenVolts.Venue.Tests.Events;
 using TwoNineteenVolts.Venue.Tests.Groups;
@@ -280,6 +281,29 @@ public class SessionServiceTests
     }
 
     [Fact]
+    public async Task Giving_up_at_the_door_on_start_and_stop_is_audited()
+    {
+        using var factory = new VenueAppFactory();
+        var (panel, spot) = await AddSpotAsync(factory);
+        var (_, other) = await AddSecondSpotAsync(factory, panel);
+        await UseServiceAsync(factory, sessions => sessions.StartAsync(other, 60, null));
+        var device = await FindDeviceAsync(factory, panel);
+        factory.Waveshare.Gate = new TaskCompletionSource();
+        var check = ActivatorUtilities.CreateInstance<DeviceCheckService>(factory.Services).RunOnceAsync();
+        SpinWait.SpinUntil(() => factory.Waveshare.Calls.Contains($"read-all {device.Id}"), TimeSpan.FromSeconds(5));
+
+        var start = await GiveUpAtTheDoorAsync(factory, sessions => sessions.StartAsync(spot, 60, null));
+        var stop = await GiveUpAtTheDoorAsync(factory, sessions => sessions.StopAsync(other));
+        factory.Waveshare.Gate.SetResult();
+        await check;
+
+        var details = await AuditDetailsAsync(factory, AuditActions.SpotSwitchFailed);
+        Assert.Equal(DeviceError.NoAnswer, start.Error);
+        Assert.Equal(DeviceError.NoAnswer, stop.Error);
+        Assert.Equal(["no answer", "no answer"], details);
+    }
+
+    [Fact]
     public async Task Price_preview_matches_the_charge()
     {
         using var factory = new VenueAppFactory();
@@ -318,6 +342,44 @@ public class SessionServiceTests
         Assert.Equal(SpotError.NotFound, price.Error);
     }
 
+
+    private static async Task<(int Panel, int Spot)> AddSecondSpotAsync(VenueAppFactory factory, int panel)
+    {
+        var group = await TestGroups.AddAsync(factory, "Pool", 1000);
+        var spot = await TestSpots.AddAsync(factory, "Pool 1", panel, Channel + 1, groupId: group);
+        return (panel, spot);
+    }
+
+    private static async Task<Result<Session>> GiveUpAtTheDoorAsync(VenueAppFactory factory, Func<SessionService, Task<Result<Session>>> action)
+    {
+        var running = UseServiceAsync(factory, action);
+        SpinWait.SpinUntil(
+            () =>
+            {
+                factory.Time.Advance(TimeSpan.FromSeconds(2));
+                return running.IsCompleted;
+            },
+            TimeSpan.FromSeconds(5));
+        return await running;
+    }
+
+    private static async Task<Device> FindDeviceAsync(VenueAppFactory factory, int id)
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<VenueDbContext>();
+        return await db.Devices.SingleAsync(d => d.Id == id);
+    }
+
+    private static async Task<List<string?>> AuditDetailsAsync(VenueAppFactory factory, string action)
+    {
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<VenueDbContext>();
+        return await db.AuditEntries
+            .Where(e => e.Action == action)
+            .OrderBy(e => e.Id)
+            .Select(e => e.Details)
+            .ToListAsync();
+    }
 
     private static async Task<(int Panel, int Spot)> AddSpotAsync(VenueAppFactory factory)
     {

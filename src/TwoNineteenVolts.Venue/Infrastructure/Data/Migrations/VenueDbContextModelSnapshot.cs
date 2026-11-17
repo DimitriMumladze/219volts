@@ -172,7 +172,7 @@ namespace TwoNineteenVolts.Venue.Infrastructure.Data.Migrations
 
             modelBuilder.Entity("TwoNineteenVolts.Venue.Domain.Sessions.SessionCharge", b =>
                 {
-                    b.Property<int>("Id")
+                    b.Property<long>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 

@@ -1,6 +1,7 @@
 using TwoNineteenVolts.Venue.Application.Data;
 using TwoNineteenVolts.Venue.Application.Devices;
 using TwoNineteenVolts.Venue.Application.Sessions;
+using TwoNineteenVolts.Venue.Application.Spots;
 using TwoNineteenVolts.Venue.Common;
 using TwoNineteenVolts.Venue.Domain.Sessions;
 using TwoNineteenVolts.Venue.Endpoints.Spots;
@@ -73,11 +74,16 @@ public static class SessionEndpoints
     {
         if (result.IsFailure)
         {
-            return SpotProblems.ToProblem(result.Error);
+            return await SpotProblems.ForSpotAsync(result.Error, id, db, statuses);
         }
 
         var spot = await db.Spots.FindAsync(id);
-        var response = await SpotResponses.BuildAsync(spot!, db, statuses, warnings);
+        if (spot is null)
+        {
+            return SpotProblems.ToProblem(SpotError.NotFound);
+        }
+
+        var response = await SpotResponses.BuildAsync(spot, db, statuses, warnings);
         return TypedResults.Ok(response);
     }
 }

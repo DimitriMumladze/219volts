@@ -11,7 +11,7 @@ using TwoNineteenVolts.Venue.Infrastructure.Data;
 namespace TwoNineteenVolts.Venue.Infrastructure.Data.Migrations
 {
     [DbContext(typeof(VenueDbContext))]
-    [Migration("20261116223602_AddSessions")]
+    [Migration("20261117162832_AddSessions")]
     partial class AddSessions
     {
         /// <inheritdoc />
@@ -175,7 +175,7 @@ namespace TwoNineteenVolts.Venue.Infrastructure.Data.Migrations
 
             modelBuilder.Entity("TwoNineteenVolts.Venue.Domain.Sessions.SessionCharge", b =>
                 {
-                    b.Property<int>("Id")
+                    b.Property<long>("Id")
                         .ValueGeneratedOnAdd()
                         .HasColumnType("INTEGER");
 

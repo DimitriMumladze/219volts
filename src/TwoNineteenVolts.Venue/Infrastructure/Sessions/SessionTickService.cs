@@ -10,32 +10,55 @@ public class SessionTickService(
 {
     private static readonly TimeSpan TickInterval = TimeSpan.FromSeconds(1);
 
-    public async Task RunStartupAsync()
+    public Task RunStartupAsync(CancellationToken cancellationToken = default)
     {
-        using var scope = scopes.CreateScope();
-        var sessions = scope.ServiceProvider.GetRequiredService<SessionService>();
-        await sessions.EndDueAsync(AuditActor.Restart);
+        return EndDueAsync(AuditActor.Restart, cancellationToken);
     }
 
-    public async Task RunOnceAsync()
+    public async Task RunOnceAsync(CancellationToken cancellationToken = default)
     {
+        await EndDueAsync(AuditActor.Timer, cancellationToken);
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
+
         using var scope = scopes.CreateScope();
         var sessions = scope.ServiceProvider.GetRequiredService<SessionService>();
-        await sessions.EndDueAsync(AuditActor.Timer);
-        await sessions.RestoreDriftedAsync();
+        await sessions.RestoreDriftedAsync(cancellationToken);
     }
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-        await RunSafelyAsync(RunStartupAsync);
+        await RunSafelyAsync(() => RunStartupAsync(stoppingToken));
 
         using var timer = new PeriodicTimer(TickInterval, time);
         while (await timer.WaitForNextTickAsync(stoppingToken))
         {
-            await RunSafelyAsync(RunOnceAsync);
+            await RunSafelyAsync(() => RunOnceAsync(stoppingToken));
         }
     }
 
+
+    private async Task EndDueAsync(AuditActor actor, CancellationToken cancellationToken)
+    {
+        List<int> deviceIds;
+        using (var scope = scopes.CreateScope())
+        {
+            var sessions = scope.ServiceProvider.GetRequiredService<SessionService>();
+            deviceIds = await sessions.DueDeviceIdsAsync();
+        }
+
+        var perDevice = deviceIds.Select(id => EndDueOnDeviceAsync(id, actor, cancellationToken)).ToList();
+        await Task.WhenAll(perDevice);
+    }
+
+    private async Task EndDueOnDeviceAsync(int deviceId, AuditActor actor, CancellationToken cancellationToken)
+    {
+        using var scope = scopes.CreateScope();
+        var sessions = scope.ServiceProvider.GetRequiredService<SessionService>();
+        await sessions.EndDueOnDeviceAsync(deviceId, actor, cancellationToken);
+    }
 
     private async Task RunSafelyAsync(Func<Task> run)
     {

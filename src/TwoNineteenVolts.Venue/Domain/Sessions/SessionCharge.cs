@@ -1,30 +1,22 @@
 namespace TwoNineteenVolts.Venue.Domain.Sessions;
 
-public class SessionCharge(
-    int sessionId,
-    ChargeKind kind,
-    DateTime at,
-    int? userId,
-    string userName,
-    int minutes,
-    long computedTetri,
-    long chargedTetri)
+public class SessionCharge
 {
-    public int Id { get; private set; }
+    public long Id { get; private set; }
 
-    public int SessionId { get; private set; } = sessionId;
+    public required int SessionId { get; init; }
 
-    public ChargeKind Kind { get; private set; } = kind;
+    public required ChargeKind Kind { get; init; }
 
-    public DateTime At { get; private set; } = at;
+    public required DateTime At { get; init; }
 
-    public int? UserId { get; private set; } = userId;
+    public required int? UserId { get; init; }
 
-    public string UserName { get; private set; } = userName;
+    public required string UserName { get; init; }
 
-    public int Minutes { get; private set; } = minutes;
+    public required int Minutes { get; init; }
 
-    public long ComputedTetri { get; private set; } = computedTetri;
+    public required long ComputedTetri { get; init; }
 
-    public long ChargedTetri { get; private set; } = chargedTetri;
+    public required long ChargedTetri { get; init; }
 }

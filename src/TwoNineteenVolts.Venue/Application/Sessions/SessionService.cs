@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging;
 using TwoNineteenVolts.Venue.Application.Audit;
 using TwoNineteenVolts.Venue.Application.Data;
 using TwoNineteenVolts.Venue.Application.Devices;
@@ -22,7 +23,8 @@ public class SessionService(
     IAuditLog audit,
     ICurrentActor currentActor,
     IEventQueue events,
-    TimeProvider time)
+    TimeProvider time,
+    ILogger<SessionService> logger)
 {
     public const int MinMinutes = 1;
     public const int MaxMinutes = 600;
@@ -58,9 +60,19 @@ public class SessionService(
         }
 
         var charge = prepared.Value;
-        var started = await gate.RunAsync(charge.Target.Device, board => StartInsideGateAsync(board, charge, actor));
+        var entered = false;
+        var started = await gate.RunAsync(charge.Target.Device, board =>
+        {
+            entered = true;
+            return StartInsideGateAsync(board, charge, actor);
+        });
         if (started.IsFailure)
         {
+            if (!entered)
+            {
+                await failures.RecordAsync(spotId, actor, started.Error);
+            }
+
             return started;
         }
 
@@ -101,37 +113,90 @@ public class SessionService(
         }
 
         var target = found.Value;
-        return await gate.RunAsync(target.Device, board => StopInsideGateAsync(board, target, actor));
+        var entered = false;
+        var stopped = await gate.RunAsync(target.Device, board =>
+        {
+            entered = true;
+            return StopInsideGateAsync(board, target, actor);
+        });
+        if (stopped.IsFailure && !entered)
+        {
+            await failures.RecordAsync(spotId, actor, stopped.Error);
+        }
+
+        return stopped;
     }
 
-    public async Task EndDueAsync(AuditActor actor)
+    public async Task<List<int>> DueDeviceIdsAsync()
+    {
+        var now = time.GetUtcNow().UtcDateTime;
+        var deviceIds = await db.Sessions
+            .AsNoTracking()
+            .Where(s => s.EndedAt == null && s.EndsAt <= now)
+            .Join(db.Spots, s => s.SpotId, spot => spot.Id, (s, spot) => spot.DeviceId)
+            .Distinct()
+            .ToListAsync();
+
+        return deviceIds.OfType<int>().ToList();
+    }
+
+    public async Task EndDueOnDeviceAsync(int deviceId, AuditActor actor, CancellationToken cancellationToken)
     {
         var now = time.GetUtcNow().UtcDateTime;
         var due = await db.Sessions
             .AsNoTracking()
             .Where(s => s.EndedAt == null && s.EndsAt <= now)
-            .OrderBy(s => s.EndsAt)
-            .Select(s => s.SpotId)
+            .Join(db.Spots, s => s.SpotId, spot => spot.Id, (s, spot) => new { s.EndsAt, SpotId = spot.Id, spot.DeviceId, spot.Channel })
+            .Where(x => x.DeviceId == deviceId)
+            .OrderBy(x => x.EndsAt)
             .ToListAsync();
+        var device = await db.Devices.AsNoTracking().SingleAsync(d => d.Id == deviceId);
 
-        foreach (var spotId in due)
+        foreach (var item in due)
         {
-            await EndDueOnSpotAsync(spotId, actor);
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+
+            if (item.Channel is not int channel)
+            {
+                continue;
+            }
+
+            await gate.RunAsync(device, board => EndDueInsideGateAsync(board, item.SpotId, channel, actor));
         }
     }
 
-    public async Task RestoreDriftedAsync()
+    public async Task RestoreDriftedAsync(CancellationToken cancellationToken)
     {
         var running = await db.Sessions
             .AsNoTracking()
             .Where(s => s.EndedAt == null)
-            .OrderBy(s => s.Id)
-            .Select(s => s.SpotId)
+            .Join(db.Spots, s => s.SpotId, spot => spot.Id, (s, spot) => spot)
+            .Join(db.Devices, spot => spot.DeviceId, device => (int?)device.Id, (spot, device) => new { SpotId = spot.Id, spot.Channel, Device = device })
+            .OrderBy(x => x.SpotId)
             .ToListAsync();
 
-        foreach (var spotId in running)
+        foreach (var item in running)
         {
-            await RestoreOnSpotAsync(spotId);
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+
+            if (item.Channel is not int channel)
+            {
+                continue;
+            }
+
+            var status = statuses.Get(item.Device.Id);
+            if (status.IsOn(channel) != false)
+            {
+                continue;
+            }
+
+            await gate.RunAsync(item.Device, board => RestoreInsideGateAsync(board, item.SpotId, item.Device.Id, channel));
         }
     }
 
@@ -171,18 +236,6 @@ public class SessionService(
     }
 
 
-    private async Task EndDueOnSpotAsync(int spotId, AuditActor actor)
-    {
-        var mapped = await MappedSpotAsync(spotId);
-        if (mapped is null)
-        {
-            return;
-        }
-
-        var (device, channel) = mapped.Value;
-        await gate.RunAsync(device, board => EndDueInsideGateAsync(board, spotId, channel, actor));
-    }
-
     private async Task<Result<bool>> EndDueInsideGateAsync(Board board, int spotId, int channel, AuditActor actor)
     {
         var now = time.GetUtcNow().UtcDateTime;
@@ -210,45 +263,18 @@ public class SessionService(
     private static async Task<string?> SwitchOffAsync(Board board, int channel)
     {
         var switched = await board.SwitchAsync(channel, false);
-        if (switched.IsFailure)
-        {
-            return switched.Error;
-        }
-
-        if (switched.Value)
-        {
-            return SpotError.StateMismatch;
-        }
-
-        return null;
+        return SwitchFailures.ErrorOf(switched, false);
     }
 
     private async Task RecordSwitchOffFailedAsync(Session session, AuditActor actor, string error)
     {
+        failures.Log(session.SpotId, error);
         warnings.Add(session.SpotId);
         var target = AuditTarget.Spot(session.SpotId);
         var reason = SwitchFailures.ReasonFor(error);
         audit.Record(actor, AuditActions.SessionSwitchOffFailed, target, reason);
         await db.SaveChangesAsync();
         events.Publish(new SessionSwitchOffFailed(session.SpotId, session.Id));
-    }
-
-    private async Task RestoreOnSpotAsync(int spotId)
-    {
-        var mapped = await MappedSpotAsync(spotId);
-        if (mapped is null)
-        {
-            return;
-        }
-
-        var (device, channel) = mapped.Value;
-        var status = statuses.Get(device.Id);
-        if (status.IsOn(channel) != false)
-        {
-            return;
-        }
-
-        await gate.RunAsync(device, board => RestoreInsideGateAsync(board, spotId, device.Id, channel));
     }
 
     private async Task<Result<bool>> RestoreInsideGateAsync(Board board, int spotId, int deviceId, int channel)
@@ -267,8 +293,16 @@ public class SessionService(
         }
 
         var switched = await board.SwitchAsync(channel, true);
-        if (switched.IsFailure || !switched.Value)
+        if (switched.IsFailure)
         {
+            logger.LogWarning("Drift fix for spot {SpotId} failed: {Error}", spotId, switched.Error);
+            return Result<bool>.Ok(false);
+        }
+
+        if (!switched.Value)
+        {
+            statuses.ForgetChannel(deviceId, channel);
+            logger.LogWarning("Drift fix for spot {SpotId} failed: the relay still reads off", spotId);
             return Result<bool>.Ok(false);
         }
 
@@ -277,18 +311,6 @@ public class SessionService(
         await db.SaveChangesAsync();
         events.Publish(new SessionRestored(spotId, session.Id));
         return Result<bool>.Ok(true);
-    }
-
-    private async Task<(Device Device, int Channel)?> MappedSpotAsync(int spotId)
-    {
-        var spot = await db.Spots.AsNoTracking().SingleAsync(s => s.Id == spotId);
-        if (spot.DeviceId is not int deviceId || spot.Channel is not int channel)
-        {
-            return null;
-        }
-
-        var device = await db.Devices.AsNoTracking().SingleAsync(d => d.Id == deviceId);
-        return (device, channel);
     }
 
     private async Task<Result<Session>> StartInsideGateAsync(Board board, PreparedCharge charge, AuditActor actor)
@@ -301,16 +323,11 @@ public class SessionService(
         }
 
         var switched = await board.SwitchAsync(charge.Target.Channel, true);
-        if (switched.IsFailure)
+        var error = SwitchFailures.ErrorOf(switched, true);
+        if (error is not null)
         {
-            await failures.RecordAsync(spotId, actor, switched.Error);
-            return Fail(switched.Error);
-        }
-
-        if (!switched.Value)
-        {
-            await failures.RecordAsync(spotId, actor, SpotError.StateMismatch);
-            return Fail(SpotError.StateMismatch);
+            await failures.RecordAsync(spotId, actor, error);
+            return Fail(error);
         }
 
         var now = time.GetUtcNow().UtcDateTime;
@@ -352,17 +369,11 @@ public class SessionService(
             return Fail(SessionError.NotRunning);
         }
 
-        var switched = await board.SwitchAsync(target.Channel, false);
-        if (switched.IsFailure)
+        var error = await SwitchOffAsync(board, target.Channel);
+        if (error is not null)
         {
-            await failures.RecordAsync(spotId, actor, switched.Error);
-            return Fail(switched.Error);
-        }
-
-        if (switched.Value)
-        {
-            await failures.RecordAsync(spotId, actor, SpotError.StateMismatch);
-            return Fail(SpotError.StateMismatch);
+            await failures.RecordAsync(spotId, actor, error);
+            return Fail(error);
         }
 
         await EndInsideGateAsync(session, SessionEndReason.Stopped, actor);
@@ -371,15 +382,17 @@ public class SessionService(
 
     private void RecordCharge(Session session, ChargeKind kind, PreparedCharge charge, AuditActor actor, DateTime now, string action)
     {
-        var sessionCharge = new SessionCharge(
-            session.Id,
-            kind,
-            now,
-            actor.UserId,
-            actor.Name,
-            charge.Minutes,
-            charge.ComputedTetri,
-            charge.ChargedTetri);
+        var sessionCharge = new SessionCharge
+        {
+            SessionId = session.Id,
+            Kind = kind,
+            At = now,
+            UserId = actor.UserId,
+            UserName = actor.Name,
+            Minutes = charge.Minutes,
+            ComputedTetri = charge.ComputedTetri,
+            ChargedTetri = charge.ChargedTetri
+        };
         db.SessionCharges.Add(sessionCharge);
 
         var target = AuditTarget.Spot(session.SpotId);
